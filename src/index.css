@@ -1,0 +1,44 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap");
+
+:root {
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  color: #1a1917;
+  background: #d8d4ca;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #e24d34;
+  outline-offset: 3px;
+}
+
+body.is-interacting {
+  cursor: pointer;
+}
