@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type WorldItemId = 'music' | 'photos' | 'library' | 'journeys' | 'work'
+export type WorldItemId = 'philosophy' | 'about' | 'experience' | 'toolkit' | 'work'
 
 type WorldState = {
   activeItem: WorldItemId | null

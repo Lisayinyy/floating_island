@@ -37,6 +37,12 @@
   pointer-events: auto;
 }
 
+.topbar-actions {
+  display: flex;
+  gap: 9px;
+  pointer-events: auto;
+}
+
 .identity-mark {
   display: grid;
   width: 38px;
@@ -232,6 +238,7 @@
   font-size: 12px;
   font-weight: 650;
   text-align: left;
+  text-decoration: none;
   transition: color 160ms ease, padding 160ms ease;
 }
 
