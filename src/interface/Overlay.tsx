@@ -1,15 +1,22 @@
 import {
+  ArrowRight,
+  BookOpen,
   Cpu,
-  Camera,
   Code2,
-  ExternalLink,
+  Globe2,
   GraduationCap,
+  ImageIcon,
   Laptop,
   Lightbulb,
+  Menu,
+  Moon,
+  Palette,
   RotateCcw,
+  Sun,
   UserRound,
   X,
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useWorldStore } from '../store/worldStore'
 import type { WorldItemId } from '../store/worldStore'
 
@@ -23,6 +30,7 @@ const panels: Record<
     meta: string
     action: string
     href: string
+    object: string
   }
 > = {
   philosophy: {
@@ -34,6 +42,7 @@ const panels: Record<
     meta: 'USER FIRST · DATA OVER OPINIONS · SHIP FAST',
     action: 'Read my product principles',
     href: 'https://lisayinyy.github.io/personal_web/#how',
+    object: 'PROTOTYPE DECK',
   },
   about: {
     index: '02',
@@ -44,6 +53,7 @@ const panels: Record<
     meta: 'AI PRODUCT · HCI / UX · VIBE CODING',
     action: 'Meet Lisa',
     href: 'https://lisayinyy.github.io/personal_web/#about',
+    object: 'PINK PORTRAIT',
   },
   experience: {
     index: '03',
@@ -54,6 +64,7 @@ const panels: Record<
     meta: 'MICHIGAN CS · HCI MINOR · DEAN’S LIST',
     action: 'See the full timeline',
     href: 'https://lisayinyy.github.io/personal_web/#exp',
+    object: 'GRADUATION CAP',
   },
   toolkit: {
     index: '04',
@@ -64,6 +75,7 @@ const panels: Record<
     meta: 'AI AGENTS · REACT · PYTHON · FIGMA',
     action: 'Explore my toolkit',
     href: 'https://lisayinyy.github.io/personal_web/#contact',
+    object: 'AI CONSOLE',
   },
   work: {
     index: '05',
@@ -74,36 +86,98 @@ const panels: Record<
     meta: 'PROMPTAI · SKILLS MASTER · SENTIMENT MONITOR',
     action: 'View selected work',
     href: 'https://lisayinyy.github.io/personal_web/#work',
+    object: 'LAPTOP',
   },
+  art: {
+    index: '06',
+    eyebrow: 'MY PAINTINGS',
+    title: 'A space for the worlds I draw',
+    description:
+      'This easel will become a changing gallery for my paintings, sketches and visual experiments.',
+    meta: 'PAINTING · SKETCHES · VISUAL DIARY',
+    action: 'Visit my creative world',
+    href: 'https://lisayinyy.github.io/personal_web/#art',
+    object: 'PAINTING EASEL',
+  },
+}
+
+const itemOrder: WorldItemId[] = ['about', 'art', 'work', 'philosophy', 'experience', 'toolkit']
+
+const menuLabels: Record<WorldItemId, string> = {
+  about: 'About Lisa',
+  art: 'My Paintings',
+  work: 'Selected Work',
+  philosophy: 'How I Work',
+  experience: 'Experience',
+  toolkit: 'Creative Toolkit',
 }
 
 const panelIcons = {
   philosophy: Lightbulb,
-  about: Camera,
+  about: ImageIcon,
   experience: GraduationCap,
   toolkit: Cpu,
   work: Laptop,
+  art: Palette,
 }
 
-export function Overlay({ onReset }: { onReset: () => void }) {
+export function Overlay({
+  introComplete,
+  onReset,
+}: {
+  introComplete: boolean
+  onReset: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const activeItem = useWorldStore((state) => state.activeItem)
+  const theme = useWorldStore((state) => state.theme)
   const setActiveItem = useWorldStore((state) => state.setActiveItem)
+  const toggleTheme = useWorldStore((state) => state.toggleTheme)
   const panel = activeItem ? panels[activeItem] : null
   const PanelIcon = activeItem ? panelIcons[activeItem] : null
 
+  useEffect(() => {
+    if (!menuOpen) return
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [menuOpen])
+
   return (
-    <div className="overlay">
+    <div
+      className={`overlay ${introComplete ? 'is-ready' : 'is-intro'} ${menuOpen ? 'menu-open' : ''}`}
+    >
+      {!introComplete && <div className="intro-input-shield" aria-hidden="true" />}
       <header className="topbar">
         <div className="identity">
-          <span className="identity-mark">L</span>
+          <a
+            className="identity-mark"
+            href="https://lisayinyy.github.io/personal_web/"
+            aria-label="Open Lisa's portfolio"
+          >
+            L
+          </a>
           <span>
             <b>LISA WORLD</b>
-            <small>ROOM 01 · PERSONAL SPACE</small>
+            <small>A FLOATING INNER WORLD</small>
           </span>
         </div>
         <div className="topbar-actions">
+          <button
+            className="icon-control theme-control"
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'day' ? 'Switch to night mode' : 'Switch to day mode'}
+            title={theme === 'day' ? 'Night mode' : 'Day mode'}
+          >
+            {theme === 'day' ? <Moon size={18} strokeWidth={1.8} /> : <Sun size={18} strokeWidth={1.8} />}
+          </button>
           <a
-            className="icon-control"
+            className="icon-control portfolio-link"
             href="https://lisayinyy.github.io/personal_web/"
             target="_blank"
             rel="noreferrer"
@@ -122,13 +196,96 @@ export function Overlay({ onReset }: { onReset: () => void }) {
           >
             <Code2 size={18} strokeWidth={1.8} />
           </a>
+          <button
+            className="icon-control"
+            type="button"
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-label={menuOpen ? 'Close room menu' : 'Open room menu'}
+            aria-expanded={menuOpen}
+            title={menuOpen ? 'Close menu' : 'Menu'}
+          >
+            {menuOpen ? <X size={19} /> : <Menu size={19} />}
+          </button>
         </div>
       </header>
+
+      {introComplete && !activeItem && (
+        <section className="scene-intro">
+          <p>AI PRODUCT MANAGER · BUILDER · DREAMER</p>
+          <h1>Welcome to Lisa&apos;s World</h1>
+          <span>
+            My real interests, memories and work live together on this floating island.
+            Every object opens a chapter of my story.
+          </span>
+          <a className="intro-portal" href="https://lisayinyy.github.io/personal_web/">
+            Enter the full website
+            <ArrowRight size={16} />
+          </a>
+        </section>
+      )}
+
+      {menuOpen && (
+        <nav className="room-menu" aria-label="Explore Lisa World">
+          <div className="room-menu-head">
+            <span>LISA&apos;S INNER WORLD</span>
+            <small>CHOOSE A CHAPTER</small>
+          </div>
+          <div className="room-menu-links">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveItem(null)
+                onReset()
+                setMenuOpen(false)
+              }}
+            >
+              <span>00</span>
+              <b>Home</b>
+            </button>
+            {itemOrder.map((item) => {
+              const itemPanel = panels[item]
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    setActiveItem(item)
+                    setMenuOpen(false)
+                  }}
+                >
+                  <span>{itemPanel.index}</span>
+                  <b>{menuLabels[item]}</b>
+                </button>
+              )
+            })}
+          </div>
+          <div className="room-menu-socials">
+            <a
+              href="https://lisayinyy.github.io/personal_web/"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Open Lisa's portfolio"
+              title="Portfolio"
+            >
+              <Globe2 size={22} strokeWidth={1.6} />
+            </a>
+            <a
+              href="https://github.com/Lisayinyy"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Open Lisa's GitHub profile"
+              title="GitHub"
+            >
+              <Code2 size={22} strokeWidth={1.6} />
+            </a>
+          </div>
+        </nav>
+      )}
 
       <div className="scene-index" aria-hidden="true">
         <span>LW / 001</span>
         <i />
-        <span>23.07.26</span>
+        <span>EST. 2026</span>
       </div>
 
       <div className="toolbar">
@@ -149,7 +306,7 @@ export function Overlay({ onReset }: { onReset: () => void }) {
       {panel && activeItem && PanelIcon && (
         <aside className="content-panel" aria-live="polite">
           <div className="panel-head">
-            <span className="panel-index">{panel.index}</span>
+            <span className="panel-index">{panel.index} / {panel.object}</span>
             <button
               className="panel-close"
               type="button"
@@ -160,15 +317,21 @@ export function Overlay({ onReset }: { onReset: () => void }) {
               <X size={19} />
             </button>
           </div>
-          <PanelIcon className="panel-icon" size={27} strokeWidth={1.4} />
+          <div className="panel-symbol">
+            <PanelIcon size={29} strokeWidth={1.35} />
+          </div>
           <p className="panel-eyebrow">{panel.eyebrow}</p>
           <h1>{panel.title}</h1>
           <p className="panel-description">{panel.description}</p>
           <div className="panel-meta">{panel.meta}</div>
-          <a className="panel-action" href={panel.href} target="_blank" rel="noreferrer">
+          <a className="panel-action" href={panel.href}>
             {panel.action}
-            <ExternalLink size={16} />
+            <ArrowRight size={17} />
           </a>
+          <p className="panel-footnote">
+            <BookOpen size={13} />
+            Opens this chapter in Lisa’s full website
+          </p>
         </aside>
       )}
     </div>
