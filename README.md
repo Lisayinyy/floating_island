@@ -115,8 +115,12 @@ with software WebGL and checks the failures that have actually happened here:
   laptop pane or a missing window light fails a check rather than a screenshot
   review.
 - theme persistence, a dark OS preference, and keyboard-only chapter access
+- **the link's own presentation.** The favicon resolving under the project
+  subpath, and a `summary_large_image` card at the right dimensions. Both fail
+  silently and neither appears in any screenshot of the page — the favicon
+  shipped for a while was a scaffold's purple lightning bolt.
 
-101 checks at the time of writing, across desktop and phone, day and night.
+106 checks at the time of writing, across desktop and phone, day and night.
 
 ```bash
 npm run build
@@ -150,6 +154,7 @@ src/
 └── App.css                    Sky gradients, dust, menu sheet, panels, loader
 qa/
 ├── verify.py                  Headless WebGL regression pass
+├── share_card.py              Captures public/share-card.png from the real scene
 └── shot.py                    Quick day/night screenshots
 ```
 

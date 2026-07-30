@@ -19,11 +19,29 @@
       content="An interactive floating island built with React Three Fiber. Every object opens a chapter of Lisa's story."
     />
     <meta property="og:url" content="https://lisayinyy.github.io/floating_island/" />
-    <meta name="twitter:card" content="summary" />
+    <!-- Absolute URLs on purpose: Vite rewrites `src`/`href` for `base: './'` but
+         not meta `content`, and most scrapers refuse to resolve a relative
+         og:image anyway. The card itself is a screenshot of the real scene
+         (`qa/share_card.py`), so it cannot drift from what visitors see. -->
+    <meta
+      property="og:image"
+      content="https://lisayinyy.github.io/floating_island/share-card.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A low-poly floating island holding a cutaway cabin, a tree and a campfire, beside the words 'Welcome to Lisa's world'."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Lisa World | A floating inner world" />
     <meta
       name="twitter:description"
       content="An interactive floating island built with React Three Fiber."
+    />
+    <meta
+      name="twitter:image"
+      content="https://lisayinyy.github.io/floating_island/share-card.png"
     />
   </head>
   <body>

@@ -263,6 +263,54 @@ def run_persistence(context, url: str, device: str) -> None:
     page.close()
 
 
+def run_share_assets(page, url: str) -> None:
+    """The link's own presentation: tab icon and social card.
+
+    Both fail silently. The favicon shipped for a while was the purple lightning
+    bolt left over from a scaffold, and a missing `og:image` turns a site whose
+    entire point is a picture into a text-only card. Neither shows up in any
+    screenshot of the page itself.
+    """
+    icon = page.get_attribute('link[rel="icon"]', "href") or ""
+    check(
+        "share: favicon path is base-relative",
+        icon.startswith("./") or icon.startswith("favicon"),
+        icon,
+    )
+    icon_status = page.evaluate(
+        "(href) => fetch(href).then((r) => r.status).catch(() => 0)", icon
+    )
+    check("share: favicon resolves", icon_status == 200, f"HTTP {icon_status}")
+
+    card = page.get_attribute('meta[property="og:image"]', "content") or ""
+    check("share: og:image is absolute", card.startswith("https://"), card)
+
+    twitter_card = page.get_attribute('meta[name="twitter:card"]', "content") or ""
+    check(
+        "share: twitter card is large",
+        twitter_card == "summary_large_image",
+        twitter_card,
+    )
+
+    # The card is served from the same build, so fetch it by filename rather than
+    # by the production URL in the meta tag.
+    name = card.rsplit("/", 1)[-1]
+    size = page.evaluate(
+        """(name) => new Promise((resolve) => {
+            const image = new Image()
+            image.onload = () => resolve([image.naturalWidth, image.naturalHeight])
+            image.onerror = () => resolve([0, 0])
+            image.src = name
+        })""",
+        name,
+    )
+    check(
+        "share: card is 1200x630",
+        size == [1200, 630],
+        f"{name} is {size[0]}x{size[1]}",
+    )
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     httpd = socketserver.TCPServer(("127.0.0.1", PORT), Handler)
@@ -326,6 +374,8 @@ def main() -> None:
 
                 run_keyboard(page, device)
                 run_focus(page, device)
+                if device == "desktop":
+                    run_share_assets(page, url)
 
                 # Leave the island in night mode, then confirm a fresh visit in
                 # the same browser profile still opens at night.
