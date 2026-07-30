@@ -1,34 +1,34 @@
-import { useProgress } from '@react-three/drei'
-import { Canvas } from '@react-three/fiber'
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Overlay } from './interface/Overlay'
-import { World } from './scene/World'
-import { useWorldStore } from './store/worldStore'
+import { syncDocumentTheme, useWorldStore, watchSystemTheme } from './store/worldStore'
 import './App.css'
+
+/**
+ * The renderer lives in its own chunk. Nothing above this line imports three.js,
+ * which is what lets the loading screen appear while the scene is still on the
+ * wire.
+ */
+const Stage = lazy(() => import('./scene/Stage'))
 
 /**
  * Full-bleed loading screen: two dotted rings counter-rotating over a flat
  * theme-coloured field. It replaces drei's default progress bar so the very
  * first frame already belongs to this site rather than to a library.
  *
- * The reveal cannot be driven by `progress === 100` alone. Every object in this
- * scene is procedural geometry, so three's loading manager may never receive a
- * single item: `total` stays 0 and `progress` stays 0 forever. The screen
- * therefore reveals when nothing is in flight, and a hard cap guarantees the
- * visitor is never trapped behind the rings.
+ * The reveal is deliberately not driven by a loading percentage. Every object in
+ * this scene is procedural geometry, so three's loading manager may never
+ * receive a single item — `progress` sits at 0 forever and the visitor stays
+ * trapped behind the rings. Instead the screen lifts once the renderer reports
+ * itself created, with a hard cap in case that never arrives either.
  */
-function LoadingScreen({ isNight }: { isNight: boolean }) {
-  const { progress, active, total } = useProgress()
+function LoadingScreen({ isNight, sceneReady }: { isNight: boolean; sceneReady: boolean }) {
   const [done, setDone] = useState(false)
-  const settled = !active && (total === 0 || progress >= 100)
 
   useEffect(() => {
     if (done) return
-    // Short beat once settled so the scene has a frame to draw; otherwise a
-    // ceiling so a stalled manager still lets the island through.
-    const timer = window.setTimeout(() => setDone(true), settled ? 460 : 4000)
+    const timer = window.setTimeout(() => setDone(true), sceneReady ? 460 : 6000)
     return () => window.clearTimeout(timer)
-  }, [done, settled])
+  }, [done, sceneReady])
 
   return (
     <div
@@ -41,7 +41,7 @@ function LoadingScreen({ isNight }: { isNight: boolean }) {
           <span />
           <span />
         </div>
-        <p>ENTERING LISA&apos;S WORLD {Math.round(total === 0 ? 100 : progress)}%</p>
+        <p>ENTERING LISA&apos;S WORLD</p>
       </div>
     </div>
   )
@@ -50,27 +50,26 @@ function LoadingScreen({ isNight }: { isNight: boolean }) {
 function App() {
   const [resetKey, setResetKey] = useState(0)
   const [introComplete, setIntroComplete] = useState(false)
+  const [sceneReady, setSceneReady] = useState(false)
   const theme = useWorldStore((state) => state.theme)
+
+  // Follow the operating system until the visitor picks a side themselves.
+  useEffect(() => watchSystemTheme(), [])
+  // Keep <html data-theme> honest even when the store was seeded by localStorage.
+  useEffect(() => syncDocumentTheme(theme), [theme])
 
   return (
     <main className={`app-shell ${theme === 'night' ? 'is-night' : 'is-day'}`}>
-      <Canvas
-        shadows
-        dpr={[1, 1.75]}
-        camera={{ position: [8.6, 5.4, 11.8], fov: 35, near: 0.1, far: 120 }}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-        onPointerMissed={() => document.body.classList.remove('is-interacting')}
-      >
-        <Suspense fallback={null}>
-          <World
-            resetKey={resetKey}
-            introComplete={introComplete}
-            onIntroComplete={() => setIntroComplete(true)}
-          />
-        </Suspense>
-      </Canvas>
+      <Suspense fallback={null}>
+        <Stage
+          resetKey={resetKey}
+          introComplete={introComplete}
+          onIntroComplete={() => setIntroComplete(true)}
+          onSceneReady={() => setSceneReady(true)}
+        />
+      </Suspense>
       <Overlay introComplete={introComplete} onReset={() => setResetKey((value) => value + 1)} />
-      <LoadingScreen isNight={theme === 'night'} />
+      <LoadingScreen isNight={theme === 'night'} sceneReady={sceneReady} />
     </main>
   )
 }

@@ -137,15 +137,19 @@ export function Overlay({
   const PanelIcon = activeItem ? panelIcons[activeItem] : null
 
   useEffect(() => {
-    if (!menuOpen) return
+    if (!menuOpen && !activeItem) return
 
+    // Escape unwinds one layer at a time: the menu sheet sits above the chapter
+    // panel, so it closes first.
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
+      if (event.key !== 'Escape') return
+      if (menuOpen) setMenuOpen(false)
+      else setActiveItem(null)
     }
 
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [menuOpen])
+  }, [menuOpen, activeItem, setActiveItem])
 
   return (
     <div

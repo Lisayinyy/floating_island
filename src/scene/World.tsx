@@ -2,11 +2,143 @@ import { ContactShadows, OrbitControls, Sparkles, Stars } from '@react-three/dre
 import { useFrame, useThree } from '@react-three/fiber'
 import gsap from 'gsap'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Group, MathUtils, PerspectiveCamera, Vector3 } from 'three'
+import { Box3, Group, MathUtils, PerspectiveCamera, Raycaster, Vector3 } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { useWorldStore } from '../store/worldStore'
+import type { Light, Mesh, MeshStandardMaterial, Object3D } from 'three'
 import type { WorldItemId } from '../store/worldStore'
+import { getWorldObject } from './objectRegistry'
 import { Room } from './Room'
+import './stats'
+
+/**
+ * Publish what the renderer actually built, plus a probe that answers "can the
+ * camera currently see the object this chapter is about?".
+ *
+ * A screenshot proves "something drew"; it cannot tell a painted laptop screen
+ * from a blank plane, and it certainly cannot tell that the cabin roof is
+ * between the camera and the graduation cap. Both of those shipped at some point
+ * and both are now assertable from `qa/verify.py`.
+ */
+function SceneProbes() {
+  const scene = useThree((state) => state.scene)
+  const camera = useThree((state) => state.camera)
+  const theme = useWorldStore((state) => state.theme)
+
+  useEffect(() => {
+    const raycaster = new Raycaster()
+    const centre = new Vector3()
+    const direction = new Vector3()
+    const box = new Box3()
+
+    const isDescendantOf = (object: Object3D, ancestor: Group) => {
+      for (let node: Object3D | null = object; node; node = node.parent) {
+        if (node === ancestor) return true
+      }
+      return false
+    }
+
+    /**
+     * Sample points on the object, not just its bounding-box centre. The photo
+     * wall is four frames with air between them, so a single centre ray sailed
+     * straight through the gap and hit the wall behind — a false report of
+     * "occluded" for an object that was perfectly visible.
+     */
+    const samplePoints = (group: Group) => {
+      const points: Vector3[] = [box.setFromObject(group).getCenter(new Vector3())]
+      group.traverse((object) => {
+        if (points.length >= 14) return
+        const mesh = object as Mesh
+        if (!mesh.isMesh || !mesh.geometry) return
+        mesh.geometry.computeBoundingBox()
+        const local = mesh.geometry.boundingBox?.getCenter(new Vector3())
+        if (local) points.push(mesh.localToWorld(local))
+      })
+      return points
+    }
+
+    window.__ISLAND_PROBE__ = (id: WorldItemId) => {
+      const group = getWorldObject(id)
+      if (!group) return null
+
+      const points = samplePoints(group)
+      let seen = 0
+      let blockedBy: string | null = null
+
+      for (const point of points) {
+        direction.copy(point).sub(camera.position).normalize()
+        raycaster.set(camera.position, direction)
+        const hit = raycaster
+          .intersectObject(scene, true)
+          .find(
+            (intersection) =>
+              (intersection.object as Mesh).isMesh && intersection.object.visible,
+          )
+        if (hit && isDescendantOf(hit.object, group)) seen += 1
+        else if (hit && !blockedBy) {
+          // Report where the blocker is, not just that it exists: these meshes
+          // are anonymous primitives, so a position is the only usable clue.
+          const at = hit.object.getWorldPosition(new Vector3())
+          blockedBy = `${hit.object.name || hit.object.type} @ ${at.x.toFixed(2)},${at.y.toFixed(2)},${at.z.toFixed(2)}`
+        }
+      }
+
+      box.setFromObject(group).getCenter(centre)
+      const ndc = centre.clone().project(camera)
+      return {
+        visibleRatio: Number((seen / points.length).toFixed(3)),
+        samples: points.length,
+        blockedBy,
+        ndc: { x: Number(ndc.x.toFixed(3)), y: Number(ndc.y.toFixed(3)) },
+      }
+    }
+
+    return () => {
+      delete window.__ISLAND_PROBE__
+    }
+  }, [scene, camera])
+
+  useEffect(() => {
+    // A beat, so conditional night-only lights and shadows have mounted.
+    const timer = window.setTimeout(() => {
+      let meshes = 0
+      let triangles = 0
+      let lights = 0
+      let screens = 0
+
+      scene.traverse((object) => {
+        if ((object as Light).isLight) lights += 1
+        const mesh = object as Mesh
+        if (!mesh.isMesh || !mesh.geometry) return
+        meshes += 1
+        const index = mesh.geometry.index
+        const position = mesh.geometry.getAttribute('position')
+        if (index) triangles += index.count / 3
+        else if (position) triangles += position.count / 3
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        if (
+          materials.some((material) =>
+            (material as MeshStandardMaterial).map?.name?.startsWith('screen:'),
+          )
+        ) {
+          screens += 1
+        }
+      })
+
+      window.__ISLAND_STATS__ = {
+        meshes,
+        triangles: Math.round(triangles),
+        lights,
+        screens,
+        theme,
+      }
+    }, 450)
+
+    return () => window.clearTimeout(timer)
+  }, [scene, theme])
+
+  return null
+}
 
 /**
  * Where each chapter lives in the scene. Only the point of interest is stored —
@@ -22,7 +154,7 @@ const focusTargets: Record<WorldItemId, [number, number, number]> = {
   philosophy: [-4, 1.25, 0.5],
   about: [-3.85, 2.9, -2.35],
   experience: [0.05, 3.55, -2.35],
-  toolkit: [3, 1.75, -1.7],
+  toolkit: [-3, 1.8, 1.05],
   work: [0.15, 2.42, -1.52],
   art: [4.85, 1.58, 1.35],
 }
@@ -567,6 +699,7 @@ export function World({
         onIntroComplete={onIntroComplete}
         onDraggingChange={setIsDragging}
       />
+      <SceneProbes />
     </>
   )
 }

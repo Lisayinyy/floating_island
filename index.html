@@ -28,6 +28,28 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Resolve the theme before the bundle loads: a stored choice first, the
+         operating-system preference second. Without this the first paint is
+         always the light page, which flashes for night visitors. The key must
+         match THEME_STORAGE_KEY in src/store/worldStore.ts. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('floating-island:theme')
+          var theme =
+            stored === 'day' || stored === 'night'
+              ? stored
+              : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'night'
+                : 'day'
+          document.documentElement.dataset.theme = theme
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', theme === 'night' ? '#101822' : '#f6f2e8')
+        } catch (error) {
+          document.documentElement.dataset.theme = 'day'
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

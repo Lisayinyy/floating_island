@@ -24,6 +24,15 @@ body,
   overflow: hidden;
 }
 
+/* `data-theme` is written by the inline bootstrap in index.html before React
+   mounts, so the document never flashes a bright page at a visitor whose system
+   (or previous visit) asked for night. */
+html[data-theme="night"],
+html[data-theme="night"] body {
+  background: #101822;
+  color: #f4ecef;
+}
+
 button,
 a {
   font: inherit;
