@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# QA render output (regenerate with qa/verify.py)
+qa/shots/

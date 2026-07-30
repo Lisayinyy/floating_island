@@ -2,44 +2,102 @@ import { ContactShadows, OrbitControls, Sparkles, Stars } from '@react-three/dre
 import { useFrame, useThree } from '@react-three/fiber'
 import gsap from 'gsap'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Group, MathUtils, PerspectiveCamera } from 'three'
+import { Group, MathUtils, PerspectiveCamera, Vector3 } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { useWorldStore } from '../store/worldStore'
 import type { WorldItemId } from '../store/worldStore'
 import { Room } from './Room'
 
-const focusViews: Record<
-  WorldItemId,
-  {
-    camera: [number, number, number]
-    target: [number, number, number]
-  }
-> = {
-  philosophy: {
-    camera: [-7.6, 4.7, 7.4],
-    target: [-4, 1.25, 0.5],
-  },
-  about: {
-    camera: [-7.8, 5.2, 8],
-    target: [-3.85, 2.9, -2.35],
-  },
-  experience: {
-    camera: [-3.4, 5.7, 6.4],
-    target: [0.05, 3.55, -2.35],
-  },
-  toolkit: {
-    camera: [7.5, 4.8, 6.8],
-    target: [3, 1.75, -1.7],
-  },
-  work: {
-    camera: [5.2, 5.1, 7],
-    target: [0.15, 2.42, -1.52],
-  },
-  art: {
-    camera: [8.7, 4.7, 7.5],
-    target: [4.85, 1.58, 1.35],
-  },
+/**
+ * Where each chapter lives in the scene. Only the point of interest is stored —
+ * the camera position is derived.
+ *
+ * These used to be hand-written camera/target pairs, and adding the cabin roof
+ * broke every one of them: several placed the camera inside the room, looking at
+ * the back of a wall. Deriving the camera from the home viewing direction keeps
+ * the 3/4 angle the whole site is composed around, so a chapter always reads as
+ * "lean in on this object" instead of "teleport somewhere new".
+ */
+const focusTargets: Record<WorldItemId, [number, number, number]> = {
+  philosophy: [-4, 1.25, 0.5],
+  about: [-3.85, 2.9, -2.35],
+  experience: [0.05, 3.55, -2.35],
+  toolkit: [3, 1.75, -1.7],
+  work: [0.15, 2.42, -1.52],
+  art: [4.85, 1.58, 1.35],
 }
+
+/**
+ * How a chapter is framed: how far back the camera sits, and how far the aim
+ * point is pushed off the object so the object does not end up underneath the
+ * content panel. On desktop the panel is docked right, so the aim point moves
+ * right (which slides the object left on screen); on mobile the panel is docked
+ * bottom, so the aim point drops (which lifts the object up on screen).
+ */
+const focusFraming = {
+  desktop: { distance: 24, lateral: 5.2, vertical: 0.4 },
+  mobile: { distance: 30, lateral: 0, vertical: -2.3 },
+}
+
+const UP = new Vector3(0, 1, 0)
+
+function focusViewFor(
+  object: [number, number, number],
+  home: Framing,
+  frame: { distance: number; lateral: number; vertical: number },
+): { camera: [number, number, number]; target: [number, number, number] } {
+  const direction = new Vector3(
+    home.camera[0] - home.target[0],
+    home.camera[1] - home.target[1],
+    home.camera[2] - home.target[2],
+  ).normalize()
+  // `right` matches three's camera x-axis: cross(up, eye - target).
+  const right = new Vector3().crossVectors(UP, direction).normalize()
+
+  const target: [number, number, number] = [
+    object[0] + right.x * frame.lateral,
+    object[1] + frame.vertical,
+    object[2] + right.z * frame.lateral,
+  ]
+
+  return {
+    target,
+    camera: [
+      target[0] + direction.x * frame.distance,
+      target[1] + direction.y * frame.distance,
+      target[2] + direction.z * frame.distance,
+    ],
+  }
+}
+
+type Framing = {
+  camera: [number, number, number]
+  target: [number, number, number]
+  fov: number
+}
+
+/**
+ * Framing lives in one place on purpose.
+ *
+ * The intro tween and the "return home" tween used to carry their own copies of
+ * these numbers, which is how the tree crown ended up cropped by the top of the
+ * viewport: one copy was retuned, the other was not. `homeFraming` is sized so
+ * the whole island — hanging rock at the bottom, tree crown at the top right —
+ * stays inside the frame with breathing room, the way the reference board keeps
+ * its island fully visible and centred.
+ */
+const homeFraming: Record<'desktop' | 'mobile', Framing> = {
+  desktop: { camera: [20.8, 7.6, 28.6], target: [-0.3, 0.45, -0.45], fov: 40 },
+  mobile: { camera: [27.8, 10.6, 38.4], target: [-0.2, 0.9, -0.45], fov: 48 },
+}
+
+const introFraming: Record<'desktop' | 'mobile', Framing> = {
+  desktop: { camera: [8.6, 5.4, 11.8], target: [-0.3, 2.5, -0.45], fov: 35 },
+  mobile: { camera: [13.4, 7.9, 17.8], target: [-0.2, 3.1, -0.45], fov: 34 },
+}
+
+const framingFor = (set: Record<'desktop' | 'mobile', Framing>, isMobile: boolean) =>
+  set[isMobile ? 'mobile' : 'desktop']
 
 function FloatingWorld({
   children,
@@ -190,40 +248,32 @@ function Controls({
 
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const isMobile = window.innerWidth < 700
-      const homeCamera: [number, number, number] = isMobile
-        ? [21.5, 7.8, 30.5]
-        : [15.8, 5.5, 21.8]
-      const homeTarget: [number, number, number] = [
-        isMobile ? -0.2 : -0.4,
-        isMobile ? -1.15 : -1.4,
-        -0.4,
-      ]
+      const home = framingFor(homeFraming, isMobile)
+      const intro = framingFor(introFraming, isMobile)
+      const homeCamera = home.camera
+      const homeTarget = home.target
 
       if (reduceMotion) {
         camera.position.set(...homeCamera)
         controls.target.set(...homeTarget)
-        camera.fov = isMobile ? 52 : 39
+        camera.fov = home.fov
         camera.updateProjectionMatrix()
         controls.update()
         onIntroCompleteRef.current()
         return
       }
 
-      const introCamera: [number, number, number] = isMobile
-        ? [13.4, 7.9, 17.8]
-        : [8.3, 5.3, 11.4]
-      const introTarget: [number, number, number] = isMobile
-        ? [-0.2, 3.1, -0.4]
-        : [-0.3, 2.5, -0.45]
+      const introCamera = intro.camera
+      const introTarget = intro.target
 
       camera.position.set(...introCamera)
       controls.target.set(...introTarget)
-      camera.fov = isMobile ? 34 : 35
+      camera.fov = intro.fov
       camera.updateProjectionMatrix()
       controls.update()
 
       const timeline = gsap.timeline({
-        delay: 0.28,
+        delay: 0.2,
         onComplete: () => onIntroCompleteRef.current(),
       })
 
@@ -234,7 +284,7 @@ function Controls({
             x: introCamera[0] - 0.28,
             y: introCamera[1] + 0.08,
             z: introCamera[2] + 0.34,
-            duration: 1.05,
+            duration: 0.85,
             ease: 'sine.inOut',
             onUpdate: () => controls.update(),
           },
@@ -246,7 +296,7 @@ function Controls({
             x: introTarget[0] - 0.24,
             y: introTarget[1] + 0.1,
             z: introTarget[2],
-            duration: 1.05,
+            duration: 0.85,
             ease: 'sine.inOut',
             onUpdate: () => controls.update(),
           },
@@ -258,11 +308,11 @@ function Controls({
             x: homeCamera[0],
             y: homeCamera[1],
             z: homeCamera[2],
-            duration: 2.45,
+            duration: 1.95,
             ease: 'power3.inOut',
             onUpdate: () => controls.update(),
           },
-          1.12,
+          0.9,
         )
         .to(
           controls.target,
@@ -270,21 +320,21 @@ function Controls({
             x: homeTarget[0],
             y: homeTarget[1],
             z: homeTarget[2],
-            duration: 2.35,
+            duration: 1.9,
             ease: 'power3.inOut',
             onUpdate: () => controls.update(),
           },
-          1.12,
+          0.9,
         )
         .to(
           camera,
           {
-            fov: isMobile ? 52 : 41,
-            duration: 2.2,
+            fov: home.fov,
+            duration: 1.8,
             ease: 'power2.inOut',
             onUpdate: () => camera.updateProjectionMatrix(),
           },
-          1.2,
+          0.95,
         )
     }, 0)
 
@@ -301,17 +351,15 @@ function Controls({
 
     const controls = controlsRef.current
     const isMobile = width < 700
-    const homeCamera: [number, number, number] = isMobile ? [21.5, 7.8, 30.5] : [15.8, 5.5, 21.8]
-    const homeTarget: [number, number, number] = [
-      isMobile ? -0.2 : -0.4,
-      isMobile ? -1.15 : -1.4,
-      -0.4,
-    ]
-    const view = activeItem ? focusViews[activeItem] : null
-    const cameraPosition = view && !isMobile ? view.camera : homeCamera
-    const targetPosition = view && !isMobile ? view.target : homeTarget
+    const home = framingFor(homeFraming, isMobile)
+    const focusObject = activeItem ? focusTargets[activeItem] : null
+    const focus = focusObject
+      ? focusViewFor(focusObject, home, focusFraming[isMobile ? 'mobile' : 'desktop'])
+      : null
+    const targetPosition = focus?.target ?? home.target
+    const cameraPosition = focus?.camera ?? home.camera
 
-    camera.fov = isMobile ? 52 : activeItem ? 33 : 39
+    camera.fov = activeItem ? (isMobile ? home.fov - 6 : 34) : home.fov
     camera.updateProjectionMatrix()
 
     gsap.killTweensOf(camera.position)
@@ -347,10 +395,10 @@ function Controls({
       enabled={introComplete}
       target={[0, 0.75, -0.55]}
       enablePan={false}
-      minDistance={10}
+      minDistance={16}
       maxDistance={Infinity}
       minPolarAngle={0.72}
-      maxPolarAngle={1.35}
+      maxPolarAngle={1.45}
       minAzimuthAngle={-Math.PI / 4}
       maxAzimuthAngle={Math.PI / 4}
       rotateSpeed={0.82}
@@ -391,37 +439,55 @@ export function World({
 
   return (
     <>
-      {isNight && <color attach="background" args={['#151822']} />}
+      {/*
+        No `<color attach="background">` on purpose. The canvas is alpha, and the
+        night sky is a layered CSS gradient on `.app-shell`; painting a solid
+        WebGL background covered it and flattened the night theme back to one
+        dead navy tone.
+      */}
       <fog attach="fog" args={[isNight ? '#17111d' : '#f1eeee', 90, 900]} />
-      <ambientLight intensity={isNight ? 0.42 : 0.92} color={isNight ? '#c9b9d5' : '#fff0eb'} />
+      {/*
+        Lighting follows one rule borrowed from the reference board: the island
+        is a dark mass read against a soft sky, and warm light only exists where
+        the story is (fire, lantern, desk lamp). Daylight fill is therefore kept
+        deliberately low — a bright ambient wash was what made the first version
+        look like flat beige mush.
+      */}
+      <ambientLight intensity={isNight ? 0.4 : 0.52} color={isNight ? '#c9b9d5' : '#fff0eb'} />
       <hemisphereLight
         args={[
-          isNight ? '#514868' : '#f3dfe6',
-          isNight ? '#100c16' : '#5f4b58',
-          isNight ? 0.56 : 1.15,
+          isNight ? '#514868' : '#f0e2ea',
+          isNight ? '#100c16' : '#4a3947',
+          isNight ? 0.5 : 0.66,
         ]}
       />
       <directionalLight
         castShadow
         position={[-5, 10, 7]}
-        intensity={isNight ? 0.64 : 1.8}
+        intensity={isNight ? 0.6 : 1.32}
         color={isNight ? '#aaa0d5' : '#ffe6dc'}
         shadow-mapSize={[1536, 1536]}
         shadow-camera-near={1}
-        shadow-camera-far={25}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-9}
+        shadow-camera-far={32}
+        shadow-camera-left={-12}
+        shadow-camera-right={12}
+        shadow-camera-top={12}
+        shadow-camera-bottom={-11}
+      />
+      {/* Cool rim light from behind so the silhouette separates from the sky. */}
+      <directionalLight
+        position={[9.5, 6.5, -11]}
+        intensity={isNight ? 0.5 : 0.78}
+        color={isNight ? '#8f9ad8' : '#dfe7f3'}
       />
       <spotLight
         castShadow
         position={[5.5, 6, 2]}
         angle={0.5}
         penumbra={0.9}
-        intensity={isNight ? 28 : 24}
+        intensity={isNight ? 26 : 12}
         distance={18}
-        color={isNight ? '#ffc38c' : '#f5d0c8'}
+        color={isNight ? '#ffc38c' : '#f7d3c4'}
       />
       {isNight && (
         <>

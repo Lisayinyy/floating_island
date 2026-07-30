@@ -152,6 +152,11 @@ export function Overlay({
       className={`overlay ${introComplete ? 'is-ready' : 'is-intro'} ${menuOpen ? 'menu-open' : ''}`}
     >
       {!introComplete && <div className="intro-input-shield" aria-hidden="true" />}
+      <div className="dust" aria-hidden="true">
+        {Array.from({ length: 8 }, (_, index) => (
+          <i key={index} />
+        ))}
+      </div>
       <header className="topbar">
         <div className="identity">
           <a
@@ -188,7 +193,7 @@ export function Overlay({
           </a>
           <a
             className="icon-control"
-            href="https://github.com/Lisayinyy/lisa_world"
+            href="https://github.com/Lisayinyy/floating_island"
             target="_blank"
             rel="noreferrer"
             aria-label="Open GitHub repository"
@@ -197,7 +202,7 @@ export function Overlay({
             <Code2 size={18} strokeWidth={1.8} />
           </a>
           <button
-            className="icon-control"
+            className="icon-control menu-control"
             type="button"
             onClick={() => setMenuOpen((value) => !value)}
             aria-label={menuOpen ? 'Close room menu' : 'Open room menu'}
@@ -212,10 +217,13 @@ export function Overlay({
       {introComplete && !activeItem && (
         <section className="scene-intro">
           <p>AI PRODUCT MANAGER · BUILDER · DREAMER</p>
-          <h1>Welcome to Lisa&apos;s World</h1>
+          <h1>
+            Welcome to
+            <em>Lisa&apos;s world</em>
+          </h1>
           <span>
-            My real interests, memories and work live together on this floating island.
-            Every object opens a chapter of my story.
+            My interests, memories and work all live on this floating island.
+            Every object opens a chapter.
           </span>
           <a className="intro-portal" href="https://lisayinyy.github.io/personal_web/">
             Enter the full website
@@ -224,69 +232,76 @@ export function Overlay({
         </section>
       )}
 
-      {menuOpen && (
-        <nav className="room-menu" aria-label="Explore Lisa World">
-          <div className="room-menu-head">
-            <span>LISA&apos;S INNER WORLD</span>
-            <small>CHOOSE A CHAPTER</small>
-          </div>
-          <div className="room-menu-links">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveItem(null)
-                onReset()
-                setMenuOpen(false)
-              }}
-            >
-              <span>00</span>
-              <b>Home</b>
-            </button>
-            {itemOrder.map((item) => {
-              const itemPanel = panels[item]
-              return (
+      {/* A full-screen frosted sheet rather than a dropdown: the island stays
+          visible through the blur, and the chapter list gets room to breathe. */}
+      <nav className="menu-sheet" aria-label="Explore Lisa World" aria-hidden={!menuOpen}>
+        <div className="menu-sheet-inner">
+          <p className="menu-kicker">choose a chapter</p>
+          <ul className="menu-links">
+            <li>
+              <button
+                type="button"
+                tabIndex={menuOpen ? 0 : -1}
+                onClick={() => {
+                  setActiveItem(null)
+                  onReset()
+                  setMenuOpen(false)
+                }}
+              >
+                <i>00</i>
+                Home
+              </button>
+            </li>
+            {itemOrder.map((item) => (
+              <li key={item}>
                 <button
-                  key={item}
                   type="button"
+                  tabIndex={menuOpen ? 0 : -1}
                   onClick={() => {
                     setActiveItem(item)
                     setMenuOpen(false)
                   }}
                 >
-                  <span>{itemPanel.index}</span>
-                  <b>{menuLabels[item]}</b>
+                  <i>{panels[item].index}</i>
+                  {menuLabels[item]}
                 </button>
-              )
-            })}
-          </div>
-          <div className="room-menu-socials">
+              </li>
+            ))}
+          </ul>
+          <div className="menu-socials">
             <a
               href="https://lisayinyy.github.io/personal_web/"
               target="_blank"
               rel="noreferrer"
+              tabIndex={menuOpen ? 0 : -1}
               aria-label="Open Lisa's portfolio"
               title="Portfolio"
             >
-              <Globe2 size={22} strokeWidth={1.6} />
+              <Globe2 size={24} strokeWidth={1.6} />
             </a>
             <a
               href="https://github.com/Lisayinyy"
               target="_blank"
               rel="noreferrer"
+              tabIndex={menuOpen ? 0 : -1}
               aria-label="Open Lisa's GitHub profile"
               title="GitHub"
             >
-              <Code2 size={22} strokeWidth={1.6} />
+              <Code2 size={24} strokeWidth={1.6} />
             </a>
           </div>
-        </nav>
-      )}
+        </div>
+      </nav>
 
       <div className="scene-index" aria-hidden="true">
         <span>LW / 001</span>
         <i />
         <span>EST. 2026</span>
       </div>
+
+      <p className="scene-signature" aria-hidden="true">
+        © 2026 lisa&apos;s floating island
+      </p>
 
       <div className="toolbar">
         <button

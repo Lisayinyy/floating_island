@@ -378,7 +378,7 @@ function Chair() {
 }
 
 function DeskLamp({ isNight }: { isNight: boolean }) {
-  const glow = isNight ? 2.8 : 0.28
+  const glow = isNight ? 2.8 : 1.15
 
   return (
     <group position={[-1.15, 1.78, -1.25]} rotation={[0, 0.18, 0]}>
@@ -399,6 +399,15 @@ function DeskLamp({ isNight }: { isNight: boolean }) {
           side={2}
         />
       </mesh>
+      {/* The lamp keeps a warm pool on the desk in both themes, so the cabin
+          interior never falls completely flat under the new roof. */}
+      <pointLight
+        position={[0.3, 1.1, 0.24]}
+        intensity={isNight ? 9 : 5.2}
+        distance={isNight ? 6 : 4.6}
+        decay={2}
+        color="#ffc98d"
+      />
     </group>
   )
 }
@@ -472,6 +481,77 @@ function SketchbookCorner() {
   )
 }
 
+/**
+ * A cutaway cabin shell: a shed roof, its beams and two front posts.
+ *
+ * The room used to be two bare floating wall planes, which read as "furniture
+ * on a disc" rather than a place. A roof gives the island a recognisable
+ * silhouette (the plantpot.studio cabin does the same job) while the open front
+ * keeps every interactive object visible — the camera sits low enough that the
+ * sight line to the desk passes far below the roof edge.
+ */
+function CabinShell({ isNight }: { isNight: boolean }) {
+  const beam = isNight ? '#3a2b39' : '#a58779'
+  const shingle = isNight ? '#332634' : '#96786d'
+  const slope = Math.atan2(1.05, 3.55)
+
+  return (
+    <group>
+      {/* Roof slab: high at the back wall, lower over the open front. */}
+      <group position={[0, 5.12, -1.05]} rotation={[-slope, 0, 0]}>
+        <RoundedBox args={[11.35, 0.2, 4.15]} radius={0.06} castShadow receiveShadow>
+          <meshStandardMaterial color={shingle} roughness={0.95} />
+        </RoundedBox>
+        {/* Shingle rows for a little texture in raking light. */}
+        {[-1.35, -0.3, 0.75].map((z) => (
+          <mesh key={z} position={[0, 0.12, z]} receiveShadow>
+            <boxGeometry args={[11.1, 0.06, 0.9]} />
+            <meshStandardMaterial color={isNight ? '#3b2c3c' : '#a2857a'} roughness={0.98} />
+          </mesh>
+        ))}
+        {/* Fascia along the front edge. */}
+        <mesh position={[0, -0.02, 2.14]} castShadow>
+          <boxGeometry args={[11.35, 0.3, 0.16]} />
+          <meshStandardMaterial color={beam} roughness={0.9} />
+        </mesh>
+      </group>
+
+      {/* Exposed rafters under the slab. */}
+      {[-4.6, -2.3, 0, 2.3, 4.6].map((x) => (
+        <mesh
+          key={x}
+          position={[x, 5.0, -1.05]}
+          rotation={[-slope, 0, 0]}
+          castShadow
+        >
+          <boxGeometry args={[0.16, 0.14, 4.05]} />
+          <meshStandardMaterial color={beam} roughness={0.9} />
+        </mesh>
+      ))}
+
+      {/* Front posts holding the low edge of the roof. */}
+      {[-5.12, 5.12].map((x) => (
+        <mesh key={x} position={[x, 2.3, 0.86]} castShadow>
+          <cylinderGeometry args={[0.14, 0.17, 4.6, 12]} />
+          <meshStandardMaterial color={beam} roughness={0.92} />
+        </mesh>
+      ))}
+
+      {/* Header beam tying the two posts together. */}
+      <mesh position={[0, 4.52, 0.86]} castShadow>
+        <boxGeometry args={[10.6, 0.22, 0.22]} />
+        <meshStandardMaterial color={beam} roughness={0.9} />
+      </mesh>
+
+      {/* Right-hand end wall so the cabin is not open on three sides. */}
+      <mesh position={[5.12, 2.65, -0.52]} rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
+        <boxGeometry args={[4.55, 4.8, 0.18]} />
+        <meshStandardMaterial color={isNight ? '#2c2131' : '#c2a695'} roughness={0.95} />
+      </mesh>
+    </group>
+  )
+}
+
 export function Room() {
   const isNight = useWorldStore((state) => state.theme === 'night')
 
@@ -482,16 +562,18 @@ export function Room() {
       <group position={[-1.05, 0.42, 0]}>
         <mesh position={[0, 2.65, -2.7]} receiveShadow castShadow>
           <boxGeometry args={[10.4, 4.8, 0.18]} />
-          <meshStandardMaterial color={isNight ? '#3d2c3e' : '#ebe4df'} roughness={0.95} />
+          <meshStandardMaterial color={isNight ? '#3d2c3e' : '#d5c0ae'} roughness={0.95} />
         </mesh>
         <mesh position={[-5.12, 2.65, -0.52]} rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
           <boxGeometry args={[4.55, 4.8, 0.18]} />
-          <meshStandardMaterial color={isNight ? '#2c2131' : '#ddd4d1'} roughness={0.95} />
+          <meshStandardMaterial color={isNight ? '#2c2131' : '#c2a695'} roughness={0.95} />
         </mesh>
         <mesh position={[0.2, -0.08, -0.55]} rotation={[-Math.PI / 2, 0, -0.02]} receiveShadow>
           <planeGeometry args={[5.7, 4.1]} />
-          <meshStandardMaterial color={isNight ? '#633b50' : '#d8b8bf'} roughness={1} />
+          <meshStandardMaterial color={isNight ? '#633b50' : '#c9a7ae'} roughness={1} />
         </mesh>
+
+        <CabinShell isNight={isNight} />
 
         <Desk />
         <Chair />

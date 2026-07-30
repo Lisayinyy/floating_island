@@ -1,10 +1,51 @@
-import { Loader } from '@react-three/drei'
+import { useProgress } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Overlay } from './interface/Overlay'
 import { World } from './scene/World'
 import { useWorldStore } from './store/worldStore'
 import './App.css'
+
+/**
+ * Full-bleed loading screen: two dotted rings counter-rotating over a flat
+ * theme-coloured field. It replaces drei's default progress bar so the very
+ * first frame already belongs to this site rather than to a library.
+ *
+ * The reveal cannot be driven by `progress === 100` alone. Every object in this
+ * scene is procedural geometry, so three's loading manager may never receive a
+ * single item: `total` stays 0 and `progress` stays 0 forever. The screen
+ * therefore reveals when nothing is in flight, and a hard cap guarantees the
+ * visitor is never trapped behind the rings.
+ */
+function LoadingScreen({ isNight }: { isNight: boolean }) {
+  const { progress, active, total } = useProgress()
+  const [done, setDone] = useState(false)
+  const settled = !active && (total === 0 || progress >= 100)
+
+  useEffect(() => {
+    if (done) return
+    // Short beat once settled so the scene has a frame to draw; otherwise a
+    // ceiling so a stalled manager still lets the island through.
+    const timer = window.setTimeout(() => setDone(true), settled ? 460 : 4000)
+    return () => window.clearTimeout(timer)
+  }, [done, settled])
+
+  return (
+    <div
+      className={`loading-screen ${isNight ? 'is-night-loader' : ''} ${done ? 'is-done' : ''}`}
+      role="status"
+      aria-live="polite"
+    >
+      <div>
+        <div className="loading-rings" aria-hidden="true">
+          <span />
+          <span />
+        </div>
+        <p>ENTERING LISA&apos;S WORLD {Math.round(total === 0 ? 100 : progress)}%</p>
+      </div>
+    </div>
+  )
+}
 
 function App() {
   const [resetKey, setResetKey] = useState(0)
@@ -16,7 +57,7 @@ function App() {
       <Canvas
         shadows
         dpr={[1, 1.75]}
-        camera={{ position: [15.2, 5.4, 20.8], fov: 39, near: 0.1, far: 100 }}
+        camera={{ position: [8.6, 5.4, 11.8], fov: 35, near: 0.1, far: 120 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onPointerMissed={() => document.body.classList.remove('is-interacting')}
       >
@@ -29,18 +70,7 @@ function App() {
         </Suspense>
       </Canvas>
       <Overlay introComplete={introComplete} onReset={() => setResetKey((value) => value + 1)} />
-      <Loader
-        containerStyles={{ background: '#c9b7bf' }}
-        innerStyles={{ width: '180px', background: 'rgba(40, 29, 36, 0.12)' }}
-        barStyles={{ height: '3px', background: '#d46987' }}
-        dataStyles={{
-          color: '#2d222a',
-          fontFamily: 'IBM Plex Mono, monospace',
-          fontSize: '11px',
-          letterSpacing: '0.08em',
-        }}
-        dataInterpolation={(progress) => `ENTERING LISA'S WORLD ${progress.toFixed(0)}%`}
-      />
+      <LoadingScreen isNight={theme === 'night'} />
     </main>
   )
 }

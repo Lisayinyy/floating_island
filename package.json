@@ -1,5 +1,5 @@
 {
-  "name": "lisa_world",
+  "name": "floating-island",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -28,5 +28,6 @@
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1"
-  }
+  },
+  "description": "Lisa's floating island — an interactive personal world built with React Three Fiber."
 }

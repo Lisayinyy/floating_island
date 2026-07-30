@@ -12,9 +12,14 @@ import {
   PointLight,
   Object3D,
   SRGBColorSpace,
-  Vector2,
   Vector3,
 } from 'three'
+import {
+  createIslandBodyGeometry,
+  createIslandRimGeometry,
+  createIslandTopGeometry,
+  createRockLumps,
+} from './islandGeometry'
 
 type FloatingIslandProps = {
   isNight: boolean
@@ -24,16 +29,6 @@ const dayStone = ['#fffaf4', '#ead9cd', '#d5bca8']
 const nightStone = ['#5b4b5a', '#493b4c', '#392e40']
 const dayTreeLeaves = ['#eee7e2', '#e4d6dc', '#d7e1d8']
 const nightTreeLeaves = ['#8e7d89', '#9b808c', '#718479']
-
-const islandProfile = [
-  new Vector2(0, -5.38),
-  new Vector2(1.4, -5.02),
-  new Vector2(2.72, -4.32),
-  new Vector2(4.22, -3.3),
-  new Vector2(5.92, -2.08),
-  new Vector2(7.02, -1.08),
-  new Vector2(7.58, -0.4),
-]
 
 type TreeBranch = {
   points: Array<[number, number, number]>
@@ -462,9 +457,9 @@ function MemoryTree({ isNight }: FloatingIslandProps) {
 
   return (
     <group
-      position={[5.62, 0.08, -3.02]}
+      position={[4.78, 0.1, -2.92]}
       rotation={[0, -0.08, 0]}
-      scale={[1.18, 1.34, 1.18]}
+      scale={[0.95, 1.04, 0.95]}
     >
       {treeBranches.map((branch, index) => (
         <CurvedBranch
@@ -616,11 +611,6 @@ function Campfire({ isNight }: FloatingIslandProps) {
   const emberRef = useRef<Group>(null)
 
   useFrame((state) => {
-    if (!isNight) {
-      if (glowRef.current) glowRef.current.intensity = 0
-      return
-    }
-
     const elapsed = state.clock.elapsedTime
     const flicker =
       Math.sin(elapsed * 8.2) * 0.06 +
@@ -636,10 +626,13 @@ function Campfire({ isNight }: FloatingIslandProps) {
     }
 
     if (glowRef.current) {
+      // The fire stays lit in daylight too: it is the one warm anchor that
+      // keeps the pastel day scene from flattening out.
+      const base = isNight ? 24 : 10
       glowRef.current.intensity =
-        24 +
-        Math.sin(elapsed * 9.1) * 3.2 +
-        Math.sin(elapsed * 15.4 + 0.5) * 1.6
+        base +
+        Math.sin(elapsed * 9.1) * base * 0.13 +
+        Math.sin(elapsed * 15.4 + 0.5) * base * 0.07
     }
 
     if (emberRef.current) {
@@ -665,7 +658,7 @@ function Campfire({ isNight }: FloatingIslandProps) {
         </mesh>
       ))}
 
-      <group ref={flameRef} position={[0, 0.72, 0]} visible={isNight}>
+      <group ref={flameRef} position={[0, 0.72, 0]}>
         <mesh scale={[0.58, 1.05, 0.58]}>
           <sphereGeometry args={[0.48, 10, 8]} />
           <meshStandardMaterial
@@ -711,8 +704,8 @@ function Campfire({ isNight }: FloatingIslandProps) {
       <pointLight
         ref={glowRef}
         position={[0, 1.12, 0]}
-        intensity={isNight ? 24 : 0}
-        distance={6.2}
+        intensity={isNight ? 24 : 10}
+        distance={isNight ? 6.6 : 5.4}
         decay={2}
         color="#ffad62"
       />
@@ -720,44 +713,121 @@ function Campfire({ isNight }: FloatingIslandProps) {
   )
 }
 
+function HangingLantern({ isNight }: FloatingIslandProps) {
+  const flameRef = useRef<PointLight>(null)
+  const bodyColor = isNight ? '#3c2f3c' : '#6d5762'
+
+  useFrame((state) => {
+    if (!flameRef.current) return
+    const elapsed = state.clock.elapsedTime
+    const base = isNight ? 11 : 3.4
+    flameRef.current.intensity =
+      base + Math.sin(elapsed * 5.3) * base * 0.09 + Math.sin(elapsed * 11.7 + 0.7) * base * 0.05
+  })
+
+  return (
+    <group position={[-6.55, 0.2, 2.05]} rotation={[0, 0.42, 0]}>
+      {/* Post + curved arm. */}
+      <mesh position={[0, 1.55, 0]} castShadow>
+        <cylinderGeometry args={[0.075, 0.11, 3.1, 12]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.9} />
+      </mesh>
+      <mesh position={[0.42, 3.02, 0]} rotation={[0, 0, -Math.PI / 2.35]} castShadow>
+        <cylinderGeometry args={[0.055, 0.055, 1.02, 10]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.9} />
+      </mesh>
+      <mesh position={[0.86, 2.86, 0]}>
+        <cylinderGeometry args={[0.014, 0.014, 0.36, 6]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.9} />
+      </mesh>
+
+      {/* Lantern cage. */}
+      <group position={[0.86, 2.44, 0]}>
+        <mesh position={[0, 0.29, 0]} castShadow>
+          <coneGeometry args={[0.29, 0.22, 4]} />
+          <meshStandardMaterial color={bodyColor} roughness={0.85} />
+        </mesh>
+        <mesh castShadow>
+          <boxGeometry args={[0.34, 0.42, 0.34]} />
+          <meshStandardMaterial
+            color={isNight ? '#ffe0a8' : '#f6e3cd'}
+            emissive="#ffb163"
+            emissiveIntensity={isNight ? 2.6 : 0.85}
+            roughness={0.4}
+            transparent
+            opacity={0.94}
+          />
+        </mesh>
+        {[-0.17, 0.17].map((x) => (
+          <mesh key={x} position={[x, 0, 0]}>
+            <boxGeometry args={[0.035, 0.44, 0.36]} />
+            <meshStandardMaterial color={bodyColor} roughness={0.85} />
+          </mesh>
+        ))}
+        <mesh position={[0, -0.25, 0]} castShadow>
+          <boxGeometry args={[0.38, 0.08, 0.38]} />
+          <meshStandardMaterial color={bodyColor} roughness={0.85} />
+        </mesh>
+        <pointLight
+          ref={flameRef}
+          position={[0, 0, 0]}
+          intensity={isNight ? 11 : 3.4}
+          distance={isNight ? 8.5 : 5.2}
+          decay={2}
+          color="#ffb977"
+        />
+      </group>
+    </group>
+  )
+}
+
 export function FloatingIsland({ isNight }: FloatingIslandProps) {
   const stone = isNight ? nightStone : dayStone
+  const bodyGeometry = useMemo(() => createIslandBodyGeometry(), [])
+  const topGeometry = useMemo(() => createIslandTopGeometry(), [])
+  const rimGeometry = useMemo(() => createIslandRimGeometry(), [])
+  const rockLumps = useMemo(() => createRockLumps(), [])
 
   return (
     <group>
-      <mesh position={[0, -0.12, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[8.08, 7.66, 0.58, 64, 1]} />
-        <meshStandardMaterial color={stone[0]} roughness={0.96} />
+      {/* Ground: an irregular disc, not a perfect circle. */}
+      <mesh geometry={topGeometry} position={[0, 0.2, 0]} receiveShadow>
+        <meshStandardMaterial color={isNight ? '#5f4d5c' : '#d2bba9'} roughness={0.97} />
       </mesh>
 
-      <mesh receiveShadow castShadow>
-        <latheGeometry args={[islandProfile, 64]} />
+      {/* Cliff band that thickens the rim from a low camera angle. */}
+      <mesh geometry={rimGeometry} position={[0, 0.2, 0]} receiveShadow castShadow>
+        <meshStandardMaterial color={isNight ? '#4a3a4a' : '#c3a692'} roughness={0.99} flatShading />
+      </mesh>
+
+      {/* The hanging rock mass — carries the whole silhouette. */}
+      <mesh geometry={bodyGeometry} position={[0, -0.2, 0]} receiveShadow castShadow>
         <meshStandardMaterial
-          color={isNight ? '#493b4c' : '#d3b7a1'}
-          roughness={0.98}
+          color={isNight ? '#4e3f50' : '#c0a290'}
+          roughness={0.99}
+          vertexColors
+          flatShading
           side={DoubleSide}
         />
       </mesh>
 
-      <mesh position={[0, -0.43, 0]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
-        <torusGeometry args={[7.62, 0.23, 12, 96]} />
-        <meshStandardMaterial color={isNight ? '#584757' : '#ead8ca'} roughness={0.96} />
-      </mesh>
-
-      {[
-        [6.9, -1.2],
-        [5.62, -2.3],
-      ].map(([radius, y], index) => (
-        <mesh key={radius} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[radius, index === 0 ? 0.075 : 0.06, 8, 96]} />
-          <meshStandardMaterial color={isNight ? '#604d5e' : '#dfc7b6'} roughness={1} />
+      {/* Boulders clamped on the underside so the outline gets real bumps. */}
+      {rockLumps.map((lump, index) => (
+        <mesh
+          key={index}
+          position={[lump.position[0], lump.position[1] - 0.2, lump.position[2]]}
+          rotation={lump.rotation}
+          scale={lump.scale}
+          castShadow
+          receiveShadow
+        >
+          <dodecahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial
+            color={isNight ? nightStone[lump.tone] : ['#b39482', '#a88b7c', '#bd9f8d'][lump.tone]}
+            roughness={1}
+          />
         </mesh>
       ))}
-
-      <mesh position={[0, 0.13, 0]} receiveShadow>
-        <cylinderGeometry args={[7.82, 7.82, 0.18, 64]} />
-        <meshStandardMaterial color={isNight ? '#655463' : '#fffaf5'} roughness={0.94} />
-      </mesh>
 
       <RoundedBox
         args={[11.55, 0.18, 6.35]}
@@ -766,7 +836,7 @@ export function FloatingIsland({ isNight }: FloatingIslandProps) {
         receiveShadow
         castShadow
       >
-        <meshStandardMaterial color={isNight ? '#6a5665' : '#fffdf9'} roughness={0.88} />
+        <meshStandardMaterial color={isNight ? '#6a5665' : '#ead9c8'} roughness={0.88} />
       </RoundedBox>
 
       {[
@@ -793,6 +863,7 @@ export function FloatingIsland({ isNight }: FloatingIslandProps) {
       <ArrivalPath isNight={isNight} />
       <WelcomeSign isNight={isNight} />
       <MemoryTree isNight={isNight} />
+      <HangingLantern isNight={isNight} />
       <Campfire isNight={isNight} />
 
       <IslandCloud position={[-7.1, -1.2, -1.1]} scale={0.82} isNight={isNight} />
