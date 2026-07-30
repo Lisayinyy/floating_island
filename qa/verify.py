@@ -44,6 +44,10 @@ ARGS = [
 MIN_MESHES = 140
 MIN_TRIANGLES = 20000
 EXPECTED_SCREENS = 2
+# The easel canvas, four photo frames and the pinned board. Exact rather than a
+# floor: these are the surfaces the chapter close-ups land on, and a Canvas2D
+# failure degrades silently into an untextured material that still renders.
+EXPECTED_ARTWORKS = 6
 CHAPTERS = 6
 
 # Opening a chapter has to show the object it is about. Camera framing is
@@ -61,6 +65,27 @@ CHAPTER_LABELS = {
 # Not 1.0: the photo wall is four separate frames, so a sample or two legitimately
 # slips between them and lands on the wall behind.
 MIN_VISIBLE_RATIO = 0.85
+
+# Where a chapter's object is supposed to land, and how big it should read.
+#
+# "Visible" was never the whole requirement, and asserting only that let a real
+# regression through: the easel was completely unobstructed, it was just tiny and
+# floating in empty sky next to the island. These mirror `focusFraming` in
+# `src/scene/World.tsx` — the point is that if someone retunes the framing and
+# a chapter slides under the content panel or shrinks back to a speck, the suite
+# says so instead of the deploy being the first place anyone notices.
+FRAMING_SLOTS = {
+    "desktop": {"x": -0.36, "y": 0.0},
+    "mobile": {"x": 0.0, "y": 0.3},
+}
+# Generous enough to absorb the island's idle float and pointer tilt, tight
+# enough that a mis-slotted chapter cannot hide inside it.
+NDC_TOLERANCE = 0.18
+# The floor is "a close-up, not a room shot"; the ceiling is "the object still
+# has air around it". The smallest objects clamp against the camera's minimum
+# distance, which is why the floor is 0.12 rather than the 0.46 `fill` target.
+MIN_FRAME_FILL = 0.12
+MAX_FRAME_FILL = 0.72
 
 # Software rasterisation is 50-100x slower than a GPU, and how long a cold start
 # takes depends on what else the machine is doing. On real hardware the intro is
@@ -130,6 +155,11 @@ def run_theme(page, label: str, viewport_width: int) -> dict | None:
             stats["screens"] == EXPECTED_SCREENS,
             f"{stats['screens']} canvas-textured screens",
         )
+        check(
+            f"{label}: artwork painted",
+            stats.get("artworks") == EXPECTED_ARTWORKS,
+            f"{stats.get('artworks')} canvas-textured artworks",
+        )
     return stats
 
 
@@ -188,10 +218,25 @@ def run_focus(page, device: str) -> None:
 
         page.wait_for_timeout(4200)
         probe = page.evaluate("(id) => window.__ISLAND_PROBE__?.(id) ?? null", chapter)
+        detail = json.dumps(probe)
         check(
             f"{device}: {chapter} chapter frames its object",
             bool(probe) and probe["visibleRatio"] >= MIN_VISIBLE_RATIO,
-            json.dumps(probe),
+            detail,
+        )
+
+        slot = FRAMING_SLOTS[device]
+        check(
+            f"{device}: {chapter} lands on its framing slot",
+            bool(probe)
+            and abs(probe["ndc"]["x"] - slot["x"]) <= NDC_TOLERANCE
+            and abs(probe["ndc"]["y"] - slot["y"]) <= NDC_TOLERANCE,
+            detail,
+        )
+        check(
+            f"{device}: {chapter} reads as a close-up",
+            bool(probe) and MIN_FRAME_FILL <= probe["fill"] <= MAX_FRAME_FILL,
+            detail,
         )
         page.keyboard.press("Escape")
         page.wait_for_timeout(1400)

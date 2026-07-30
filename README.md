@@ -34,6 +34,17 @@ Live: <https://lisayinyy.github.io/floating_island/>
   Canvas2D textures — an editor mid-edit and a generation dashboard — because the
   chapter views fly close enough that a blank pane was the least finished surface
   on the island.
+- **Painted artwork, not placeholder shapes.** The easel carries a painting of the
+  island itself, the photo wall holds four different pictures, and the board above
+  the desk is a working moodboard. All six are Canvas2D textures for the same
+  reason as the screens: a circle and two bars stood in for a painting, and the
+  chapter close-up showed it.
+- **Framing is measured, never hand-written.** Chapter cameras are derived from a
+  live bounding-sphere measurement of the object plus a frame-relative target
+  (`fill`, `ndcX`, `ndcY`), and floating labels sit at the measured top of each
+  object. Hand-written tables drifted twice — the easel's aim point ended up 1.85
+  units off the easel, and the laptop's label floated up beside the graduation cap
+  on the shelf above it.
 
 ## Design language
 
@@ -95,10 +106,17 @@ with software WebGL and checks the failures that have actually happened here:
   from the live camera to points sampled on the object a chapter claims to show.
   This caught the AI console sitting in a pocket of the room the camera could
   never see into: every visit to that chapter framed a blank wall.
+- **a chapter that frames its object badly.** The same probe reports the object's
+  screen position and the fraction of the frame it covers, and both are asserted.
+  "Visible" was never the whole requirement — the easel was perfectly
+  unobstructed, it was just a speck floating in empty sky.
 - **a scene that quietly stopped building.** `window.__ISLAND_STATS__` reports
-  mesh, triangle, light and painted-screen counts, so a blank laptop pane or a
-  missing window light fails a check rather than a screenshot review.
+  mesh, triangle, light, painted-screen and painted-artwork counts, so a blank
+  laptop pane or a missing window light fails a check rather than a screenshot
+  review.
 - theme persistence, a dark OS preference, and keyboard-only chapter access
+
+101 checks at the time of writing, across desktop and phone, day and night.
 
 ```bash
 npm run build
@@ -124,8 +142,8 @@ src/
 │   ├── Room.tsx               The cabin shell, its windows and everything inside
 │   ├── FloatingIsland.tsx     Island body, tree, lantern, campfire, signage
 │   ├── islandGeometry.ts      Deterministic island geometry generators
-│   ├── screenTexture.ts       Canvas2D artwork for the laptop and console screens
-│   ├── objectRegistry.ts      Chapter id → group, for the focus probe
+│   ├── screenTexture.ts       Canvas2D screens and painted artwork
+│   ├── objectRegistry.ts      Chapter id → group, plus live object measurement
 │   ├── stats.ts               Types for the window debug hooks
 │   └── InteractiveObject.tsx  Hover, keyboard access and floating labels
 ├── store/worldStore.ts        Active chapter, theme resolution and persistence

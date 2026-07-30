@@ -3,7 +3,14 @@ import { useEffect, useMemo } from 'react'
 import { useWorldStore } from '../store/worldStore'
 import { FloatingIsland } from './FloatingIsland'
 import { InteractiveObject } from './InteractiveObject'
-import { createConsoleScreenTexture, createLaptopScreenTexture } from './screenTexture'
+import {
+  PHOTO_COUNT,
+  createBoardTexture,
+  createConsoleScreenTexture,
+  createEaselCanvasTexture,
+  createLaptopScreenTexture,
+  createPhotoTexture,
+} from './screenTexture'
 import type { CanvasTexture } from 'three'
 
 const dark = '#5b5254'
@@ -20,6 +27,16 @@ function useScreenTexture(create: () => CanvasTexture) {
   useEffect(() => () => texture.dispose(), [texture])
   return texture
 }
+
+/** Same contract for the surfaces that need a set of textures rather than one. */
+function usePaintedTextures(create: () => CanvasTexture[]) {
+  const textures = useMemo(create, [create])
+  useEffect(() => () => textures.forEach((texture) => texture.dispose()), [textures])
+  return textures
+}
+
+const createPhotoTextures = () =>
+  Array.from({ length: PHOTO_COUNT }, (_, index) => createPhotoTexture(index))
 
 function Desk() {
   return (
@@ -105,40 +122,36 @@ function PrototypeDeck() {
 }
 
 function PhotoWall() {
+  const photoTextures = usePaintedTextures(createPhotoTextures)
   const photos: Array<{
     position: [number, number, number]
     rotation: [number, number, number]
     size: [number, number]
     frame: string
-    photo: string
   }> = [
     {
       position: [-0.48, 0.22, 0],
       rotation: [0, 0, -0.06],
       size: [0.78, 0.98],
       frame: '#c2708c',
-      photo: '#efd2dc',
     },
     {
       position: [0.38, 0.34, 0.025],
       rotation: [0, 0, 0.08],
       size: [0.72, 0.82],
       frame: '#8b687b',
-      photo: '#d8b2c2',
     },
     {
       position: [-0.3, -0.62, 0.035],
       rotation: [0, 0, 0.04],
       size: [0.68, 0.58],
       frame: '#a98491',
-      photo: '#e8c8cf',
     },
     {
       position: [0.5, -0.48, 0.05],
       rotation: [0, 0, -0.08],
       size: [0.82, 0.66],
       frame: '#d18ba1',
-      photo: '#f0d7df',
     },
   ]
 
@@ -149,27 +162,22 @@ function PhotoWall() {
       position={[-3.72, 2.82, -2.51]}
       scale={0.88}
     >
-      {photos.map(({ position, rotation, size, frame, photo }, index) => (
+      {photos.map(({ position, rotation, size, frame }, index) => (
         <group key={index} position={position} rotation={rotation}>
           <RoundedBox args={[size[0], size[1], 0.12]} radius={0.035} castShadow>
             <meshStandardMaterial color={frame} roughness={0.72} />
           </RoundedBox>
+          {/* A painted picture rather than a swatch with a circle and a capsule
+              stuck on it. The two primitives were a stand-in for a subject, and
+              from the chapter's own close-up they read as exactly that. */}
           <mesh position={[0, 0, 0.068]}>
             <planeGeometry args={[size[0] - 0.14, size[1] - 0.14]} />
             <meshStandardMaterial
-              color={photo}
+              map={photoTextures[index]}
               emissive="#a95575"
-              emissiveIntensity={0.1}
+              emissiveIntensity={0.08}
               roughness={0.9}
             />
-          </mesh>
-          <mesh position={[0, 0.06, 0.078]}>
-            <circleGeometry args={[Math.min(size[0], size[1]) * 0.13, 24]} />
-            <meshStandardMaterial color={index % 2 === 0 ? '#f7e8ed' : '#bc7188'} />
-          </mesh>
-          <mesh position={[0, -size[1] * 0.22, 0.079]}>
-            <capsuleGeometry args={[0.1, 0.14, 5, 12]} />
-            <meshStandardMaterial color={index % 2 === 0 ? '#bc7188' : '#f7e8ed'} />
           </mesh>
         </group>
       ))}
@@ -276,28 +284,27 @@ function CandleSconce({ isNight }: { isNight: boolean }) {
 }
 
 function FutureArtwork() {
+  const board = useScreenTexture(createBoardTexture)
+
   return (
     <group position={[2.65, 3.42, -2.53]} rotation={[0, 0, 0.025]}>
       <RoundedBox args={[2.45, 1.52, 0.11]} radius={0.045} castShadow>
         <meshStandardMaterial color="#8b7580" roughness={0.72} />
       </RoundedBox>
+      {/* A working board — wireframe, colour study, sketch — rather than a blank
+          green rectangle. It is the largest flat surface in the cabin and sits
+          right behind the desk, so several chapter views include it. */}
       <mesh position={[0, 0, 0.062]}>
         <planeGeometry args={[2.12, 1.2]} />
-        <meshStandardMaterial color="#98aa9f" roughness={0.94} />
-      </mesh>
-      <mesh position={[-0.72, 0.42, 0.073]}>
-        <circleGeometry args={[0.045, 16]} />
-        <meshStandardMaterial color="#d7899d" />
-      </mesh>
-      <mesh position={[-0.56, 0.42, 0.073]}>
-        <circleGeometry args={[0.045, 16]} />
-        <meshStandardMaterial color="#d0a369" />
+        <meshStandardMaterial map={board} roughness={0.94} />
       </mesh>
     </group>
   )
 }
 
 function PaintingEasel() {
+  const easel = useScreenTexture(createEaselCanvasTexture)
+
   return (
     <InteractiveObject
       id="art"
@@ -325,20 +332,10 @@ function PaintingEasel() {
       </RoundedBox>
       <mesh position={[0, 1.02, 0.081]}>
         <planeGeometry args={[2.04, 1.24]} />
-        <meshStandardMaterial color="#f5efea" roughness={0.94} />
+        <meshStandardMaterial map={easel} roughness={0.94} />
       </mesh>
-      <mesh position={[-0.42, 1.08, 0.095]} rotation={[0, 0, -0.32]}>
-        <circleGeometry args={[0.35, 32]} />
-        <meshStandardMaterial color="#b96d86" roughness={0.86} />
-      </mesh>
-      <mesh position={[0.38, 0.85, 0.098]} rotation={[0, 0, 0.22]}>
-        <planeGeometry args={[0.76, 0.2]} />
-        <meshStandardMaterial color="#789487" roughness={0.9} />
-      </mesh>
-      <mesh position={[0.35, 1.3, 0.1]} rotation={[0, 0, -0.1]}>
-        <planeGeometry args={[0.62, 0.16]} />
-        <meshStandardMaterial color="#d3a25e" roughness={0.86} />
-      </mesh>
+      {/* Wet dabs left on the canvas edge, kept from the old placeholder — the
+          circle-and-two-bars "painting" underneath is now a painted texture. */}
       <mesh position={[-0.88, 1.52, 0.1]}>
         <circleGeometry args={[0.035, 16]} />
         <meshStandardMaterial color="#d98788" />

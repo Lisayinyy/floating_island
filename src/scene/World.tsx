@@ -7,7 +7,8 @@ import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { useWorldStore } from '../store/worldStore'
 import type { Light, Mesh, MeshStandardMaterial, Object3D } from 'three'
 import type { WorldItemId } from '../store/worldStore'
-import { getWorldObject } from './objectRegistry'
+import { getWorldObject, measureWorldObject } from './objectRegistry'
+import type { WorldObjectMeasure } from './objectRegistry'
 import { Room } from './Room'
 import './stats'
 
@@ -85,11 +86,30 @@ function SceneProbes() {
 
       box.setFromObject(group).getCenter(centre)
       const ndc = centre.clone().project(camera)
+
+      // Screen size from the projected corners rather than the analytic
+      // `radius / distance` form: the bounding sphere of a wide flat object like
+      // the photo wall is much larger than the object reads on screen, and it is
+      // the on-screen reading we care about.
+      let minY = Infinity
+      let maxY = -Infinity
+      for (let i = 0; i < 8; i += 1) {
+        const corner = new Vector3(
+          i & 1 ? box.max.x : box.min.x,
+          i & 2 ? box.max.y : box.min.y,
+          i & 4 ? box.max.z : box.min.z,
+        ).project(camera)
+        minY = Math.min(minY, corner.y)
+        maxY = Math.max(maxY, corner.y)
+      }
+
       return {
         visibleRatio: Number((seen / points.length).toFixed(3)),
         samples: points.length,
         blockedBy,
         ndc: { x: Number(ndc.x.toFixed(3)), y: Number(ndc.y.toFixed(3)) },
+        // NDC spans -1..1, so a full-height object spans 2.
+        fill: Number(((maxY - minY) / 2).toFixed(3)),
       }
     }
 
@@ -105,6 +125,7 @@ function SceneProbes() {
       let triangles = 0
       let lights = 0
       let screens = 0
+      let artworks = 0
 
       scene.traverse((object) => {
         if ((object as Light).isLight) lights += 1
@@ -116,13 +137,11 @@ function SceneProbes() {
         if (index) triangles += index.count / 3
         else if (position) triangles += position.count / 3
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-        if (
-          materials.some((material) =>
-            (material as MeshStandardMaterial).map?.name?.startsWith('screen:'),
-          )
-        ) {
-          screens += 1
-        }
+        const textureName = materials
+          .map((material) => (material as MeshStandardMaterial).map?.name)
+          .find((name) => name)
+        if (textureName?.startsWith('screen:')) screens += 1
+        if (textureName?.startsWith('art:')) artworks += 1
       })
 
       window.__ISLAND_STATS__ = {
@@ -130,6 +149,7 @@ function SceneProbes() {
         triangles: Math.round(triangles),
         lights,
         screens,
+        artworks,
         theme,
       }
     }, 450)
@@ -141,63 +161,86 @@ function SceneProbes() {
 }
 
 /**
- * Where each chapter lives in the scene. Only the point of interest is stored —
- * the camera position is derived.
+ * How a chapter is framed.
  *
- * These used to be hand-written camera/target pairs, and adding the cabin roof
- * broke every one of them: several placed the camera inside the room, looking at
- * the back of a wall. Deriving the camera from the home viewing direction keeps
- * the 3/4 angle the whole site is composed around, so a chapter always reads as
- * "lean in on this object" instead of "teleport somewhere new".
+ * Nothing here is a world coordinate. Chapter aim points used to be a
+ * hand-written table, and it drifted from the scene twice: adding the cabin roof
+ * put several cameras inside a wall, and the easel's aim point ended up 1.85
+ * units off the easel, so its chapter showed a small object adrift in empty sky.
+ * The object is now measured live from `objectRegistry`, and everything below is
+ * expressed relative to the frame instead:
+ *
+ * - `fill` — how much of the frame height the object's bounding sphere should
+ *   cover, so a graduation cap and a photo wall read at a comparable size.
+ * - `ndcX`/`ndcY` — where the object should sit on screen. On desktop the
+ *   content panel is docked right, so the object is placed left of centre; on a
+ *   phone the panel is docked bottom, so the object is lifted into the top half.
+ * - the distance clamps keep the camera out of the furniture for tiny objects
+ *   and stop it retreating to orbit for big ones.
  */
-const focusTargets: Record<WorldItemId, [number, number, number]> = {
-  philosophy: [-4, 1.25, 0.5],
-  about: [-3.85, 2.9, -2.35],
-  experience: [0.05, 3.55, -2.35],
-  toolkit: [-3, 1.8, 1.05],
-  work: [0.15, 2.42, -1.52],
-  art: [4.85, 1.58, 1.35],
+type FocusFrame = {
+  fov: number
+  fill: number
+  ndcX: number
+  ndcY: number
+  minDistance: number
+  maxDistance: number
 }
 
-/**
- * How a chapter is framed: how far back the camera sits, and how far the aim
- * point is pushed off the object so the object does not end up underneath the
- * content panel. On desktop the panel is docked right, so the aim point moves
- * right (which slides the object left on screen); on mobile the panel is docked
- * bottom, so the aim point drops (which lifts the object up on screen).
- */
-const focusFraming = {
-  desktop: { distance: 24, lateral: 5.2, vertical: 0.4 },
-  mobile: { distance: 30, lateral: 0, vertical: -2.3 },
+const focusFraming: Record<'desktop' | 'mobile', FocusFrame> = {
+  // The floor on distance is what keeps the camera outside the cabin shell; it
+  // used to be 9.5, which was high enough to clamp *every* chapter and so made
+  // `fill` inert — the graduation cap covered 15% of the frame while the easel
+  // covered 41%. It is a deliberate floor rather than a formality: the smallest
+  // objects would need to be viewed from under 4 units to reach `fill`, which
+  // puts the camera inside the cabin and crops away the shelf that gives the cap
+  // its context. So the two small objects still clamp, they just clamp closer.
+  desktop: { fov: 34, fill: 0.46, ndcX: -0.36, ndcY: 0.0, minDistance: 6.2, maxDistance: 17 },
+  mobile: { fov: 42, fill: 0.5, ndcX: 0.0, ndcY: 0.3, minDistance: 6.6, maxDistance: 19 },
 }
 
 const UP = new Vector3(0, 1, 0)
 
 function focusViewFor(
-  object: [number, number, number],
+  object: WorldObjectMeasure,
   home: Framing,
-  frame: { distance: number; lateral: number; vertical: number },
+  frame: FocusFrame,
+  aspect: number,
 ): { camera: [number, number, number]; target: [number, number, number] } {
   const direction = new Vector3(
     home.camera[0] - home.target[0],
     home.camera[1] - home.target[1],
     home.camera[2] - home.target[2],
   ).normalize()
-  // `right` matches three's camera x-axis: cross(up, eye - target).
+  // `right` matches three's camera x-axis: cross(up, eye - target); `screenUp`
+  // is the camera's own y-axis, so the vertical nudge is a screen shift rather
+  // than a world-Y shift that a 3/4 view would read as "aim at the floor".
   const right = new Vector3().crossVectors(UP, direction).normalize()
+  const screenUp = new Vector3().crossVectors(direction, right).normalize()
 
-  const target: [number, number, number] = [
-    object[0] + right.x * frame.lateral,
-    object[1] + frame.vertical,
-    object[2] + right.z * frame.lateral,
-  ]
+  // Distance that makes the bounding sphere cover `fill` of the frame height.
+  const halfAngle = MathUtils.degToRad(frame.fov * frame.fill) / 2
+  const distance = MathUtils.clamp(
+    object.radius / Math.sin(halfAngle),
+    frame.minDistance,
+    frame.maxDistance,
+  )
+
+  // Moving the aim point right slides the object left on screen, hence the
+  // negative signs: these are the offsets that land it on the requested slot.
+  const halfHeight = distance * Math.tan(MathUtils.degToRad(frame.fov) / 2)
+  const halfWidth = halfHeight * aspect
+  const target = object.centre
+    .clone()
+    .addScaledVector(right, -frame.ndcX * halfWidth)
+    .addScaledVector(screenUp, -frame.ndcY * halfHeight)
 
   return {
-    target,
+    target: [target.x, target.y, target.z],
     camera: [
-      target[0] + direction.x * frame.distance,
-      target[1] + direction.y * frame.distance,
-      target[2] + direction.z * frame.distance,
+      target.x + direction.x * distance,
+      target.y + direction.y * distance,
+      target.z + direction.z * distance,
     ],
   }
 }
@@ -484,14 +527,13 @@ function Controls({
     const controls = controlsRef.current
     const isMobile = width < 700
     const home = framingFor(homeFraming, isMobile)
-    const focusObject = activeItem ? focusTargets[activeItem] : null
-    const focus = focusObject
-      ? focusViewFor(focusObject, home, focusFraming[isMobile ? 'mobile' : 'desktop'])
-      : null
+    const frame = focusFraming[isMobile ? 'mobile' : 'desktop']
+    const measured = activeItem ? measureWorldObject(activeItem) : null
+    const focus = measured ? focusViewFor(measured, home, frame, camera.aspect) : null
     const targetPosition = focus?.target ?? home.target
     const cameraPosition = focus?.camera ?? home.camera
 
-    camera.fov = activeItem ? (isMobile ? home.fov - 6 : 34) : home.fov
+    camera.fov = focus ? frame.fov : home.fov
     camera.updateProjectionMatrix()
 
     gsap.killTweensOf(camera.position)
@@ -527,7 +569,13 @@ function Controls({
       enabled={introComplete}
       target={[0, 0.75, -0.55]}
       enablePan={false}
-      minDistance={16}
+      /* Must stay below the closest chapter distance
+         (`focusFraming.minDistance`). At 16 the controls shoved the camera back
+         out of every chapter view; at 8 they still clamped the two smallest
+         objects, which both shrank them and slid them back toward the centre of
+         the frame — the aim offset only lands where intended at the distance the
+         framing was solved for. */
+      minDistance={5}
       maxDistance={Infinity}
       minPolarAngle={0.72}
       maxPolarAngle={1.45}

@@ -11,6 +11,12 @@ export type IslandStats = {
   lights: number
   /** Meshes carrying a `screen:*` canvas texture. Should be 2. */
   screens: number
+  /**
+   * Meshes carrying an `art:*` canvas texture — the easel, the four photo frames
+   * and the pinned board. Counted separately from `screens` so that losing one
+   * set cannot be masked by the other still being present.
+   */
+  artworks: number
   /** The theme these numbers were measured under. */
   theme: 'day' | 'night'
 }
@@ -24,6 +30,15 @@ export type FocusProbe = {
   blockedBy: string | null
   /** Normalised device coordinates of the object's centre. */
   ndc: { x: number; y: number }
+  /**
+   * Fraction of the viewport height the object's projected bounding box covers.
+   *
+   * `visibleRatio` proves nothing was in the way; this proves the object is
+   * actually worth looking at. Both of the framing regressions we hit read as
+   * "visible" — the easel was unobstructed, just tiny and adrift — so the size
+   * has to be asserted separately from the occlusion.
+   */
+  fill: number
 }
 
 declare global {

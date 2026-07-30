@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useState } from 'react'
 import { Group, MathUtils } from 'three'
 import { useWorldStore } from '../store/worldStore'
-import { registerWorldObject } from './objectRegistry'
+import { measureLocalTop, registerWorldObject } from './objectRegistry'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { PropsWithChildren } from 'react'
 import type { WorldItemId } from '../store/worldStore'
@@ -14,8 +14,8 @@ type InteractiveObjectProps = PropsWithChildren<{
   position: [number, number, number]
   rotation?: [number, number, number]
   scale?: number
-  /** Height of the floating label above the object's origin. */
-  labelHeight?: number
+  /** Clearance between the top of the object and its floating label. */
+  labelGap?: number
 }>
 
 /**
@@ -34,21 +34,25 @@ export function InteractiveObject({
   position,
   rotation = [0, 0, 0],
   scale = 1,
-  labelHeight = 1.45,
+  labelGap = 0.34,
   children,
 }: InteractiveObjectProps) {
   const groupRef = useRef<Group>(null)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
+  const [labelY, setLabelY] = useState(labelGap)
   const setActiveItem = useWorldStore((state) => state.setActiveItem)
   const isActive = useWorldStore((state) => state.activeItem === id)
   const highlighted = hovered || focused || isActive
 
-  // Publish this group so the focus probe can verify the camera really sees it.
+  // Publish this group so the focus probe can verify the camera really sees it,
+  // and measure it so the label sits just above it rather than at a fixed height.
   useEffect(() => {
     if (!groupRef.current) return
-    return registerWorldObject(id, groupRef.current)
-  }, [id])
+    const unregister = registerWorldObject(id, groupRef.current)
+    setLabelY(measureLocalTop(groupRef.current) + labelGap)
+    return unregister
+  }, [id, labelGap])
 
   useFrame((_, delta) => {
     const group = groupRef.current
@@ -83,7 +87,7 @@ export function InteractiveObject({
       {children}
       <Html
         center
-        position={[0, labelHeight, 0]}
+        position={[0, labelY, 0]}
         distanceFactor={9}
         zIndexRange={[8, 2]}
         style={{ pointerEvents: 'none' }}

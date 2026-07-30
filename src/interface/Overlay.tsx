@@ -53,7 +53,7 @@ const panels: Record<
     meta: 'AI PRODUCT · HCI / UX · VIBE CODING',
     action: 'Meet Lisa',
     href: 'https://lisayinyy.github.io/personal_web/#about',
-    object: 'PINK PORTRAIT',
+    object: 'PHOTO WALL',
   },
   experience: {
     index: '03',
