@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap");
-
 :root {
   font-family: Inter, "Helvetica Neue", Arial, sans-serif;
   color: #2d222a;
@@ -12,6 +10,13 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Set by the inline bootstrap in index.html: keeps the very first paint on the
+   remembered theme instead of flashing the light background. */
+html[data-theme='night'],
+html[data-theme='night'] body {
+  background: #141720;
 }
 
 html,

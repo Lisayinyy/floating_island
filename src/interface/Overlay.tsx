@@ -101,7 +101,8 @@ const panels: Record<
   },
 }
 
-const itemOrder: WorldItemId[] = ['about', 'art', 'work', 'philosophy', 'experience', 'toolkit']
+// Menu order follows the printed chapter numbers, so 01 reads before 02.
+const itemOrder: WorldItemId[] = ['philosophy', 'about', 'experience', 'toolkit', 'work', 'art']
 
 const menuLabels: Record<WorldItemId, string> = {
   about: 'About Lisa',
@@ -137,15 +138,19 @@ export function Overlay({
   const PanelIcon = activeItem ? panelIcons[activeItem] : null
 
   useEffect(() => {
-    if (!menuOpen) return
+    if (!menuOpen && !activeItem) return
 
+    // Escape closes the menu first, then the chapter panel: the topmost thing
+    // the reader opened is the thing they expect to dismiss.
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
+      if (event.key !== 'Escape') return
+      if (menuOpen) setMenuOpen(false)
+      else setActiveItem(null)
     }
 
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [menuOpen])
+  }, [activeItem, menuOpen, setActiveItem])
 
   return (
     <div
@@ -188,7 +193,7 @@ export function Overlay({
           </a>
           <a
             className="icon-control"
-            href="https://github.com/Lisayinyy/lisa_world"
+            href="https://github.com/Lisayinyy/floating_island"
             target="_blank"
             rel="noreferrer"
             aria-label="Open GitHub repository"
@@ -217,7 +222,12 @@ export function Overlay({
             My real interests, memories and work live together on this floating island.
             Every object opens a chapter of my story.
           </span>
-          <a className="intro-portal" href="https://lisayinyy.github.io/personal_web/">
+          <a
+            className="intro-portal"
+            href="https://lisayinyy.github.io/personal_web/"
+            target="_blank"
+            rel="noreferrer"
+          >
             Enter the full website
             <ArrowRight size={16} />
           </a>
@@ -324,7 +334,7 @@ export function Overlay({
           <h1>{panel.title}</h1>
           <p className="panel-description">{panel.description}</p>
           <div className="panel-meta">{panel.meta}</div>
-          <a className="panel-action" href={panel.href}>
+          <a className="panel-action" href={panel.href} target="_blank" rel="noreferrer">
             {panel.action}
             <ArrowRight size={17} />
           </a>

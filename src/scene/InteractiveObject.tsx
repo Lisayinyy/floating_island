@@ -1,11 +1,15 @@
 import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Group, MathUtils } from 'three'
 import { useWorldStore } from '../store/worldStore'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { PropsWithChildren } from 'react'
 import type { WorldItemId } from '../store/worldStore'
+
+// Registry of the live groups, so a verification probe can ask where an object
+// actually landed on screen instead of trusting hand-written numbers.
+export const objectGroups = new Map<WorldItemId, Group>()
 
 type InteractiveObjectProps = PropsWithChildren<{
   id: WorldItemId
@@ -25,7 +29,24 @@ export function InteractiveObject({
 }: InteractiveObjectProps) {
   const groupRef = useRef<Group>(null)
   const [hovered, setHovered] = useState(false)
+  const activeItem = useWorldStore((state) => state.activeItem)
   const setActiveItem = useWorldStore((state) => state.setActiveItem)
+
+  useEffect(() => {
+    const group = groupRef.current
+    if (!group) return
+    objectGroups.set(id, group)
+    return () => {
+      if (objectGroups.get(id) === group) objectGroups.delete(id)
+    }
+  }, [id])
+
+  useEffect(
+    () => () => {
+      document.body.classList.remove('is-interacting')
+    },
+    [],
+  )
 
   useFrame((_, delta) => {
     if (!groupRef.current) return
@@ -54,8 +75,10 @@ export function InteractiveObject({
       }}
     >
       {children}
-      {hovered && (
-        <Html center position={[0, 1.45, 0]} distanceFactor={9}>
+      {(hovered || activeItem === id) && (
+        // No distanceFactor: a label is interface, not scenery, so it keeps one
+        // readable size however far the camera happens to be.
+        <Html center position={[0, 1.45, 0]}>
           <span className="object-label">{label}</span>
         </Html>
       )}

@@ -2,10 +2,11 @@ import { ContactShadows, OrbitControls, Sparkles, Stars } from '@react-three/dre
 import { useFrame, useThree } from '@react-three/fiber'
 import gsap from 'gsap'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Group, MathUtils, PerspectiveCamera } from 'three'
+import { Group, MathUtils, PerspectiveCamera, Vector3 } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { useWorldStore } from '../store/worldStore'
 import type { WorldItemId } from '../store/worldStore'
+import { objectGroups } from './InteractiveObject'
 import { Room } from './Room'
 
 const focusViews: Record<
@@ -39,6 +40,117 @@ const focusViews: Record<
     camera: [8.7, 4.7, 7.5],
     target: [4.85, 1.58, 1.35],
   },
+}
+
+type Framing = {
+  camera: [number, number, number]
+  target: [number, number, number]
+  fov: number
+}
+
+// On a phone the content panel owns the bottom of the screen, so a chapter
+// framed dead centre lands behind it. Pull the camera back a little and drop the
+// orbit target along the camera's own screen-up axis, which lifts the object
+// into the free band at the top by an exact fraction of the view height. Using
+// world Y instead would be compressed differently for every chapter, because
+// each one is viewed from a different elevation.
+const MOBILE_FOCUS_PULLBACK = 1.16
+const MOBILE_FOCUS_LIFT = 0.5
+
+const homeFramings: Record<'desktop' | 'mobile', Framing> = {
+  desktop: { camera: [15.8, 5.5, 21.8], target: [-0.4, -1.4, -0.4], fov: 39 },
+  mobile: { camera: [21.5, 7.8, 30.5], target: [-0.2, -1.15, -0.4], fov: 52 },
+}
+
+const introFramings: Record<'desktop' | 'mobile', Framing> = {
+  desktop: { camera: [8.3, 5.3, 11.4], target: [-0.3, 2.5, -0.45], fov: 35 },
+  mobile: { camera: [13.4, 7.9, 17.8], target: [-0.2, 3.1, -0.4], fov: 34 },
+}
+
+const FOCUS_FOV = { desktop: 33, mobile: 46 }
+
+function toTriple(vector: Vector3): [number, number, number] {
+  return [vector.x, vector.y, vector.z]
+}
+
+function homeFraming(isMobile: boolean): Framing {
+  return homeFramings[isMobile ? 'mobile' : 'desktop']
+}
+
+function introFraming(isMobile: boolean): Framing {
+  return introFramings[isMobile ? 'mobile' : 'desktop']
+}
+
+function framingFor(item: WorldItemId | null, isMobile: boolean): Framing {
+  if (!item) return homeFraming(isMobile)
+
+  const view = focusViews[item]
+  const fov = isMobile ? FOCUS_FOV.mobile : FOCUS_FOV.desktop
+
+  if (!isMobile) return { camera: view.camera, target: view.target, fov }
+
+  const object = new Vector3(...view.target)
+  const offset = new Vector3(...view.camera).sub(object)
+  const distance = offset.length() * MOBILE_FOCUS_PULLBACK
+  const forward = offset.clone().normalize()
+  const camera = object.clone().add(forward.clone().multiplyScalar(distance))
+  // The camera's screen-up axis, so the shift below is a pure vertical move on
+  // screen no matter how steeply this chapter is viewed from.
+  const right = new Vector3().crossVectors(forward, new Vector3(0, 1, 0)).normalize()
+  const up = new Vector3().crossVectors(right, forward).normalize()
+  const halfHeight = Math.tan((fov * Math.PI) / 360) * distance
+  const target = object.clone().addScaledVector(up, -halfHeight * MOBILE_FOCUS_LIFT)
+
+  return { camera: toTriple(camera), target: toTriple(target), fov }
+}
+
+// Only the scene knows whether the camera is still moving, so it publishes it.
+// A fixed sleep is not a substitute: under software rendering a 1s tween can
+// take several seconds of wall clock.
+type FlightState = { flying: boolean; count: number }
+
+function flight(): FlightState {
+  const globals = window as unknown as { __LW_FLIGHT__?: FlightState }
+  if (!globals.__LW_FLIGHT__) globals.__LW_FLIGHT__ = { flying: false, count: 0 }
+  return globals.__LW_FLIGHT__
+}
+
+function flightStarted() {
+  flight().flying = true
+}
+
+function flightEnded() {
+  const state = flight()
+  state.flying = false
+  state.count += 1
+}
+
+function SceneProbe() {
+  const camera = useThree((state) => state.camera)
+  const size = useThree((state) => state.size)
+
+  useEffect(() => {
+    const probe = (id: string) => {
+      const group = objectGroups.get(id as WorldItemId)
+      if (!group) return null
+      const point = group.getWorldPosition(new Vector3())
+      point.project(camera)
+      return {
+        x: ((point.x + 1) / 2) * size.width,
+        y: ((1 - point.y) / 2) * size.height,
+        width: size.width,
+        height: size.height,
+      }
+    }
+
+    const globals = window as unknown as Record<string, unknown>
+    globals.__LW_AT__ = probe
+    return () => {
+      delete globals.__LW_AT__
+    }
+  }, [camera, size])
+
+  return null
 }
 
 function FloatingWorld({
@@ -190,41 +302,38 @@ function Controls({
 
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const isMobile = window.innerWidth < 700
-      const homeCamera: [number, number, number] = isMobile
-        ? [21.5, 7.8, 30.5]
-        : [15.8, 5.5, 21.8]
-      const homeTarget: [number, number, number] = [
-        isMobile ? -0.2 : -0.4,
-        isMobile ? -1.15 : -1.4,
-        -0.4,
-      ]
+      const home = homeFraming(isMobile)
+      const homeCamera = home.camera
+      const homeTarget = home.target
 
       if (reduceMotion) {
         camera.position.set(...homeCamera)
         controls.target.set(...homeTarget)
-        camera.fov = isMobile ? 52 : 39
+        camera.fov = home.fov
         camera.updateProjectionMatrix()
         controls.update()
+        flightEnded()
         onIntroCompleteRef.current()
         return
       }
 
-      const introCamera: [number, number, number] = isMobile
-        ? [13.4, 7.9, 17.8]
-        : [8.3, 5.3, 11.4]
-      const introTarget: [number, number, number] = isMobile
-        ? [-0.2, 3.1, -0.4]
-        : [-0.3, 2.5, -0.45]
+      const intro = introFraming(isMobile)
+      const introCamera = intro.camera
+      const introTarget = intro.target
 
       camera.position.set(...introCamera)
       controls.target.set(...introTarget)
-      camera.fov = isMobile ? 34 : 35
+      camera.fov = intro.fov
       camera.updateProjectionMatrix()
       controls.update()
 
+      flightStarted()
       const timeline = gsap.timeline({
         delay: 0.28,
-        onComplete: () => onIntroCompleteRef.current(),
+        onComplete: () => {
+          flightEnded()
+          onIntroCompleteRef.current()
+        },
       })
 
       timeline
@@ -279,7 +388,7 @@ function Controls({
         .to(
           camera,
           {
-            fov: isMobile ? 52 : 41,
+            fov: home.fov,
             duration: 2.2,
             ease: 'power2.inOut',
             onUpdate: () => camera.updateProjectionMatrix(),
@@ -301,44 +410,58 @@ function Controls({
 
     const controls = controlsRef.current
     const isMobile = width < 700
-    const homeCamera: [number, number, number] = isMobile ? [21.5, 7.8, 30.5] : [15.8, 5.5, 21.8]
-    const homeTarget: [number, number, number] = [
-      isMobile ? -0.2 : -0.4,
-      isMobile ? -1.15 : -1.4,
-      -0.4,
-    ]
-    const view = activeItem ? focusViews[activeItem] : null
-    const cameraPosition = view && !isMobile ? view.camera : homeCamera
-    const targetPosition = view && !isMobile ? view.target : homeTarget
-
-    camera.fov = isMobile ? 52 : activeItem ? 33 : 39
-    camera.updateProjectionMatrix()
+    const view = framingFor(activeItem, isMobile)
 
     gsap.killTweensOf(camera.position)
     gsap.killTweensOf(controls.target)
+    gsap.killTweensOf(camera)
+
+    // A cut, not a flight: gsap's duration 0 never fires onUpdate, so the
+    // controls would keep the old target and the camera would drift back.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      camera.position.set(...view.camera)
+      controls.target.set(...view.target)
+      camera.fov = view.fov
+      camera.updateProjectionMatrix()
+      controls.update()
+      flightEnded()
+      return
+    }
+
+    flightStarted()
 
     const cameraTween = gsap.to(camera.position, {
-      x: cameraPosition[0],
-      y: cameraPosition[1],
-      z: cameraPosition[2],
+      x: view.camera[0],
+      y: view.camera[1],
+      z: view.camera[2],
       duration: 1.05,
       ease: 'power3.inOut',
       onUpdate: () => controls.update(),
+      onComplete: flightEnded,
     })
     const targetTween = gsap.to(controls.target, {
-      x: targetPosition[0],
-      y: targetPosition[1],
-      z: targetPosition[2],
+      x: view.target[0],
+      y: view.target[1],
+      z: view.target[2],
       duration: 0.95,
       ease: 'power3.inOut',
       onUpdate: () => controls.update(),
+    })
+    const fovTween = gsap.to(camera, {
+      fov: view.fov,
+      duration: 1.05,
+      ease: 'power2.inOut',
+      onUpdate: () => camera.updateProjectionMatrix(),
     })
 
     return () => {
       cameraTween.kill()
       targetTween.kill()
+      fovTween.kill()
     }
   }, [activeItem, camera, introComplete, resetKey, width])
+
+  const isMobile = width < 700
 
   return (
     <OrbitControls
@@ -348,7 +471,9 @@ function Controls({
       target={[0, 0.75, -0.55]}
       enablePan={false}
       minDistance={10}
-      maxDistance={Infinity}
+      // Home already sits at ~28 (desktop) and ~39 (mobile) units out; anything
+      // looser than this let the wheel shrink the island to a speck.
+      maxDistance={isMobile ? 46 : 36}
       minPolarAngle={0.72}
       maxPolarAngle={1.35}
       minAzimuthAngle={-Math.PI / 4}
@@ -438,14 +563,32 @@ export function World({
         </>
       )}
       {isNight && (
-        <pointLight
-          castShadow
-          position={[-1.1, 3.2, -0.75]}
-          intensity={18}
-          distance={7}
-          decay={2}
-          color="#ffc27d"
-        />
+        <>
+          {/* A point light's shadow is a cube map: six full-scene passes every
+              frame. Splitting the lamp's two jobs — glow everywhere, shadow
+              downward — keeps the look and costs one pass. */}
+          <pointLight
+            position={[-1.1, 3.2, -0.75]}
+            intensity={17}
+            distance={7}
+            decay={2}
+            color="#ffc27d"
+          />
+          <spotLight
+            castShadow
+            position={[-1.1, 3.3, -0.75]}
+            target-position={[-1.1, 0, -0.75]}
+            angle={1.02}
+            penumbra={0.92}
+            intensity={9}
+            distance={7.5}
+            decay={2}
+            color="#ffc27d"
+            shadow-mapSize={[1024, 1024]}
+            shadow-camera-near={0.4}
+            shadow-camera-far={8}
+          />
+        </>
       )}
       <Sparkles
         count={isNight ? 72 : 32}
@@ -495,6 +638,7 @@ export function World({
         resolution={512}
         color={isNight ? '#0c0910' : '#4b3845'}
       />
+      <SceneProbe />
       <Controls
         resetKey={resetKey}
         introComplete={introComplete}
