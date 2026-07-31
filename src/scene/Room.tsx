@@ -162,6 +162,27 @@ function PhotoWall() {
       position={[-3.72, 2.82, -2.51]}
       scale={0.88}
     >
+      {/*
+       * The photo wall's hit area.
+       *
+       * Four separate frames with deliberate gaps between them, and the gap is
+       * exactly where someone aims: a real tap at the centre of this chapter's
+       * own bounding box went straight between two frames, through to the wall
+       * behind, and opened nothing. On a phone, where the whole island is a few
+       * hundred pixels wide, that was the only chapter of six a real tap could
+       * not open.
+       *
+       * So the wall gets what a button gets: padding. An invisible plane spanning
+       * the frames makes "the photo wall" one target instead of four small ones.
+       * It has to be transparent rather than `visible={false}`, because three.js
+       * does not raycast invisible objects — and it is tagged as a hit area so
+       * silhouette mode leaves it alone, which would otherwise flatten it into a
+       * solid dark rectangle pasted over the pictures.
+       */}
+      <mesh name="about-hit-area" position={[0.02, -0.08, 0]} userData={{ hitArea: true }}>
+        <planeGeometry args={[1.78, 1.66]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       {photos.map(({ position, rotation, size, frame }, index) => (
         <group key={index} position={position} rotation={rotation}>
           <RoundedBox args={[size[0], size[1], 0.12]} radius={0.035} castShadow>
@@ -194,6 +215,22 @@ function GraduationCap() {
       rotation={[0, -0.12, -0.04]}
       scale={0.68}
     >
+      {/* The cap is a board, a head and a tassel dangling off to one side, so its
+          own outline is mostly air: a grid of real taps across the middle of it
+          opened the chapter 7 times out of 16, the rest falling through the gap
+          between board and tassel to the wall behind. A box the size of the cap's
+          own footprint makes the whole silhouette one target.
+
+          Deliberately not inflated to a comfortable 44px: on a phone all six
+          chapter objects sit inside a cluster 173x108px across — the island is
+          already as wide as the screen — so anything padded to finger size would
+          be stealing taps from its neighbours. On a phone the labels and the menu
+          are the reliable way in, which is what the island's self-introduction is
+          for; this only fixes aiming at something and hitting nothing. */}
+      <mesh name="experience-hit-area" position={[0.01, -0.05, 0]} userData={{ hitArea: true }}>
+        <boxGeometry args={[1.24, 0.76, 1.02]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       <mesh position={[0, 0.2, 0]} rotation={[0, 0.16, 0]} castShadow>
         <boxGeometry args={[1.22, 0.1, 1.02]} />
         <meshStandardMaterial color="#5a3d50" roughness={0.72} />

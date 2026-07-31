@@ -62,6 +62,15 @@ export function syncDocumentTheme(theme: WorldTheme) {
 
 type WorldState = {
   activeItem: WorldItemId | null
+  /**
+   * An object whose label is showing without its chapter being open.
+   *
+   * Hover is the affordance that tells a visitor the island is clickable, and a
+   * touch screen has no hover: on a phone every label stayed invisible until
+   * something was already tapped. This lets the interface point at the objects
+   * once, by itself, without moving the camera or opening anything.
+   */
+  previewItem: WorldItemId | null
   theme: WorldTheme
   /** True once the visitor picks a theme themselves; stops OS follow-along. */
   themeIsExplicit: boolean
@@ -75,6 +84,7 @@ type WorldState = {
    */
   silhouette: boolean
   setActiveItem: (item: WorldItemId | null) => void
+  setPreviewItem: (item: WorldItemId | null) => void
   setTheme: (theme: WorldTheme) => void
   /** Applies an OS-level change; ignored after an explicit choice. */
   applySystemTheme: (theme: WorldTheme) => void
@@ -84,10 +94,12 @@ type WorldState = {
 
 export const useWorldStore = create<WorldState>((set, get) => ({
   activeItem: null,
+  previewItem: null,
   theme: resolveInitialTheme(),
   themeIsExplicit: readStoredTheme() !== null,
   silhouette: false,
-  setActiveItem: (activeItem) => set({ activeItem }),
+  setActiveItem: (activeItem) => set({ activeItem, previewItem: null }),
+  setPreviewItem: (previewItem) => set({ previewItem }),
   setTheme: (theme) => {
     writeStoredTheme(theme)
     syncDocumentTheme(theme)

@@ -42,6 +42,36 @@ export type FocusProbe = {
    */
   fill: number
   /**
+   * How solid the middle of the object is: the fraction of a 5×5 ray grid over
+   * the central quarter of the projected box that lands on the object itself.
+   *
+   * The question `visibleRatio` and `fill` both fail to ask is whether there is
+   * anything *where a finger aims*. The photo wall is four frames with gaps, and
+   * the gap was in the middle — so the one chapter of six that a real tap could
+   * not open was the one whose box measured healthiest.
+   */
+  core: number
+  /**
+   * A point, in CSS pixels, that is certainly on the object: the sampled hit with
+   * the most room around it, or null when the middle is entirely gaps.
+   *
+   * A test points here rather than at the box centre. The centre can sit on a
+   * seam, and the first version of this aimed at the hit nearest the centre —
+   * which on the easel is a pixel from the gap beside the crossbar, so with the
+   * island gently bobbing one tap in four missed a target the probe had just
+   * called solid. Nobody points at the edge of a thing.
+   */
+  aim: { x: number; y: number } | null
+  /**
+   * How much room there is around `aim`, in CSS pixels: the distance from it to
+   * the nearest sampled place the object is not.
+   *
+   * The honest measure of whether an object can be pointed at with a finger. A
+   * tall thin thing can have a healthy `core` and still offer nowhere with any
+   * clearance.
+   */
+  margin: number
+  /**
    * The same projected box in CSS pixels.
    *
    * `ndc` and `fill` say where the object is and how big it reads; this says it
@@ -72,5 +102,12 @@ declare global {
      * boolean can be read before the new flight has begun — hence the counter.
      */
     __ISLAND_FLIGHT__?: { flying: boolean; count: number }
+    /**
+     * The order the island's self-introduction actually ran in, on a device
+     * without hover. Published because a 900ms step is easily swallowed by one
+     * slow frame, so sampling the labels from outside drops entries and reports
+     * a working tour as a broken one.
+     */
+    __ISLAND_TOUR__?: string[]
   }
 }

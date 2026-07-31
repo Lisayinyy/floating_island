@@ -32,6 +32,32 @@ Live: <https://lisayinyy.github.io/floating_island/>
 - **Usable without a mouse.** Each 3D object owns a real focusable button, so
   tabbing raises its label and Enter opens the chapter; Escape closes the menu
   sheet, then the panel.
+- **The island introduces itself where hover cannot.** Hover is what tells a
+  desktop visitor the island is clickable. A touch screen has no equivalent, so
+  the intro copy promised "every object opens a chapter" and then left a phone
+  visitor to guess which shapes those were. On a device where `(hover: hover)` is
+  false, each label now appears once in chapter order, one at a time — nothing
+  moves, nothing opens, and it never happens again on that device.
+- **Labels are a constant, readable size.** They used to be drawn through drei's
+  `distanceFactor`, which scales with camera distance. That is right for scenery
+  and wrong for interface: at the home framing — the one view where a visitor is
+  deciding what to click — `SELECTED WORK` came out as a 29x8 pixel smudge, and
+  19x5 on a phone. Only one label is ever shown at a time, so a constant size
+  cannot collide with its neighbours.
+- **The photo wall is one target, not four.** Its frames have deliberate gaps
+  between them, and a tap at the middle of the wall went between two frames and
+  opened nothing — on a phone that made it the one chapter of six a real tap
+  could not reach. It now carries an invisible plane spanning the frames, which
+  is what padding is for. The graduation cap had the milder version of the same
+  problem: it is a board, a head and a tassel dangling off to one side, so its
+  outline is mostly air and a grid of real taps across it opened its chapter 7
+  times out of 16. It got a box the size of its own silhouette, and now scores 12.
+  Neither hit area is inflated to a comfortable finger size, because on a phone
+  all six chapter objects live inside a cluster 173x108 pixels across — the island
+  is already as wide as the screen — so padding one to 44px would take taps from
+  its neighbours. Pointing at an object is a desktop pleasure; on a phone the
+  labels and the menu are the reliable way in, which is what the island's
+  self-introduction is for.
 - **Screens that show something.** The laptop and the AI console are painted with
   Canvas2D textures — an editor mid-edit and a generation dashboard — because the
   chapter views fly close enough that a blank pane was the least finished surface
@@ -85,6 +111,7 @@ by Akira Haga, adapted to a site that has to keep interactive content readable:
 | A single warm window in a dark mass | The right end wall is framed timber around two real openings (`WindowWall`); after dark the panes are the island's brightest note |
 | Theme follows the system, then the visitor | `resolveInitialTheme()` reads `localStorage` first and `prefers-color-scheme` second; an inline script in `index.html` applies it before React mounts, so night visitors never see a white flash |
 | Object placed against the reading column, not centred | Where a chapter puts its object is derived from `.content-panel`'s measured rectangle: docked right on a desktop, docked bottom on a phone, and the object takes the middle of whatever is left |
+| Labels that read as part of the world | Kept the ink-on-paper card and the handwritten-adjacent mono, dropped the distance scaling: interface has to stay readable at the framing where it is used |
 | A near-black island silhouette | Available on demand: `S` swaps every material for one flat dark tone, skipping anything genuinely emissive, so the mass reads as a shape with a few warm points inside it |
 
 Where it deliberately differs: plantpot's island is a near-black silhouette,
@@ -161,6 +188,51 @@ with software WebGL and checks the failures that have actually happened here:
   within 25%. This is the assertion that caught a 350px error the same afternoon
   it was written; the older "lands on its framing slot" version passed straight
   through it.
+- **a stalled context, reported instead of fatal.** Every browser context here
+  needs its own WebGL context, and creating one under a software renderer can take
+  tens of seconds. Three suites back to back on a loaded machine pushed a later
+  one past the 90s readiness ceiling, and because the wait was a bare
+  `wait_for_selector` the run died on a traceback and reported none of the checks
+  it had already answered. A timeout is worth exactly one failed check.
+- **a camera that never arrived, reported as such.** The wait for a chapter's
+  camera to land used to run out of tries and hand back the mid-flight probe
+  without complaint. That surfaced about once in thirty chapter opens as a wildly
+  off-centre framing — a real failure message about an imaginary bug, pointing at
+  the camera arithmetic instead of at the stall. The cause is gsap's default
+  `lagSmoothing(500, 33)`: when a frame takes longer than half a second it
+  advances the tween by only 33ms, so under a software renderer whose frames cost
+  two seconds a 1.05s flight genuinely takes tens of seconds. Turning smoothing
+  off was tried and reverted — it made the tween complete in one jump, which left
+  OrbitControls' damping to finish the move and put the camera *near* its mark
+  instead of on it, the same failure as the zero-duration tween below. So the
+  harness waits long enough for a stalled renderer, and a camera that never
+  arrived now fails as a camera that never arrived.
+- **the primary interaction, with a real pointer.** Every other chapter check
+  clicks the floating label's DOM node, which bypasses hit testing entirely — so
+  for six rounds nothing verified that pointing at a thing on the island opens
+  it. A real mouse click and a real touch tap at the centre of each object's own
+  projected box found the hole immediately: five of six chapters worked on a
+  phone, and the sixth was the photo wall's gap. This runs from the home view for
+  each chapter, because that is where a visitor points from — and it needs the
+  camera to have actually arrived, since a probe taken mid-flight put two of six
+  objects outside the viewport and looked exactly like a bug in the site.
+- **a middle solid enough to point at.** The probe fires a grid of rays through
+  the central quarter of each object and reports what fraction land on it, and the
+  suite requires 0.6. Both real defects sat below that: the photo wall scored 0.0
+  and the graduation cap 0.59. The click itself aims at the roomiest hit rather
+  than the centre of the box — the centre of the easel's box sits a pixel from the
+  gap beside its crossbar, and because the island bobs, one tap in four missed a
+  target the probe had just called solid. Twelve real clicks then passed twelve
+  times out of twelve. That miss was a harness aiming problem and was fixed in the
+  harness; the two hollow middles were the site's problem and were fixed in the
+  scene, and telling those apart is the whole point of measuring the middle
+  separately from the click.
+- **a label big enough to read.** Measured at the home framing, where the smudge
+  version was 22x7 pixels and this asserts 55x16.
+- **the island introducing itself on a touch device.** In its own context,
+  because it exists precisely where `(hover: hover)` is false: the six labels have
+  to appear in chapter order, never two at once, and not at all on a second
+  visit.
 - **the loading screen actually leaving.** For six rounds this was a class-name
   check — `is-done` present, therefore dismissed — and the class lands a frame
   before the computed style follows it. The loader is a full-screen plate over
@@ -212,8 +284,8 @@ with software WebGL and checks the failures that have actually happened here:
   silently and neither appears in any screenshot of the page — the favicon
   shipped for a while was a scaffold's purple lightning bolt.
 
-149 checks at the time of writing, across desktop and phone, day and night, plus
-a reduced-motion pass. The camera checks wait for the tween to settle rather than
+180 checks at the time of writing, across desktop and phone, day and night, plus
+a reduced-motion pass and two real-pointer passes (mouse and touch). The camera checks wait for the tween to settle rather than
 sleeping a fixed 4.2s — under software WebGL a 1.05s tween can take several
 wall-clock seconds, and a mid-flight probe once reported the easel covering 117%
 of the frame when it settles at 40%. Settling means *seen moving, then seen stopping*: an earlier

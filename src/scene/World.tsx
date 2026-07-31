@@ -9,6 +9,7 @@ import {
   MeshBasicMaterial,
   PerspectiveCamera,
   Raycaster,
+  Vector2,
   Vector3,
 } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
@@ -53,6 +54,9 @@ function SilhouetteMode() {
     scene.traverse((object) => {
       const mesh = object as Mesh
       if (!mesh.isMesh || !mesh.material) return
+      // Invisible click targets exist to be raycast, not seen. Flattening one
+      // would paste a solid dark rectangle over the thing it stands in for.
+      if (mesh.userData.hitArea) return
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
       const emits = materials.some((entry) => {
         const standard = entry as MeshStandardMaterial
@@ -124,6 +128,7 @@ function SceneProbes() {
 
   useEffect(() => {
     const raycaster = new Raycaster()
+    const pointer = new Vector2()
     const centre = new Vector3()
     const direction = new Vector3()
     const box = new Box3()
@@ -208,6 +213,78 @@ function SceneProbes() {
       const top = ((1 - maxY) / 2) * size.height
       const bottom = ((1 - minY) / 2) * size.height
 
+      /*
+       * How solid the middle of the object is, and the roomiest place on it.
+       *
+       * `visibleRatio` above samples the whole object and answers "can the camera
+       * see it". Neither that nor the projected box can answer the question a
+       * visitor asks with their finger: is there anything *here*, where I am
+       * aiming? The photo wall answered no — four frames with deliberate gaps, and
+       * the middle of the wall was a gap, so on a phone the one chapter of six a
+       * real tap could not open was the one whose box looked healthiest.
+       *
+       * So a grid of rays is fired through the central quarter of the box.
+       * `core` is the fraction that land on the object, a size-independent way of
+       * saying "the middle is substantially solid" — the easel is a canvas with a
+       * crossbar and air either side of it, so a metric built on a single centre
+       * ray would call a healthy object broken.
+       *
+       * `aim` is the hit with the most room around it, and `margin` is how much
+       * room that is, in CSS pixels. Aiming at the hit nearest the centre was the
+       * obvious first version and it was still flaky: the easel's most central hit
+       * sits a pixel from the gap beside the crossbar, and the island bobs, so one
+       * tap in four sailed past a target the probe had just called solid. Nobody
+       * points at the edge of a thing; the roomiest spot is where a finger goes,
+       * and `margin` says whether such a spot exists at all.
+       */
+      const gridSteps = 9
+      const spots: { x: number; y: number; hit: boolean }[] = []
+      for (let row = 0; row < gridSteps; row += 1) {
+        for (let column = 0; column < gridSteps; column += 1) {
+          // The central quarter: half the width and half the height, centred.
+          const x = left + ((right - left) * (1 + (2 * column) / (gridSteps - 1))) / 4
+          const y = top + ((bottom - top) * (1 + (2 * row) / (gridSteps - 1))) / 4
+          pointer.set((x / size.width) * 2 - 1, -(y / size.height) * 2 + 1)
+          raycaster.setFromCamera(pointer, camera)
+          const hit = raycaster
+            .intersectObject(scene, true)
+            .find(
+              (intersection) =>
+                (intersection.object as Mesh).isMesh && intersection.object.visible,
+            )
+          spots.push({ x, y, hit: Boolean(hit && isDescendantOf(hit.object, group)) })
+        }
+      }
+
+      const gridLeft = left + (right - left) / 4
+      const gridRight = right - (right - left) / 4
+      const gridTop = top + (bottom - top) / 4
+      const gridBottom = bottom - (bottom - top) / 4
+      let aim: { x: number; y: number } | null = null
+      let margin = 0
+      for (const spot of spots) {
+        if (!spot.hit) continue
+        /*
+         * Clearance: how far this spot is from the nearest place the object is not.
+         * The grid boundary counts, so a completely solid object's roomiest spot
+         * comes out at its centre rather than at an arbitrary sampled corner.
+         */
+        let clearance = Math.min(
+          spot.x - gridLeft,
+          gridRight - spot.x,
+          spot.y - gridTop,
+          gridBottom - spot.y,
+        )
+        for (const other of spots) {
+          if (other.hit) continue
+          clearance = Math.min(clearance, Math.hypot(spot.x - other.x, spot.y - other.y))
+        }
+        if (clearance > margin || aim === null) {
+          margin = clearance
+          aim = { x: Math.round(spot.x), y: Math.round(spot.y) }
+        }
+      }
+
       return {
         visibleRatio: Number((seen / points.length).toFixed(3)),
         samples: points.length,
@@ -215,6 +292,9 @@ function SceneProbes() {
         ndc: { x: Number(ndc.x.toFixed(3)), y: Number(ndc.y.toFixed(3)) },
         // NDC spans -1..1, so a full-height object spans 2.
         fill: Number(((maxY - minY) / 2).toFixed(3)),
+        core: Number((spots.filter((spot) => spot.hit).length / spots.length).toFixed(3)),
+        aim,
+        margin: Number(margin.toFixed(1)),
         // The same box in CSS pixels, so a test can ask the question that
         // actually matters on a phone: does the chapter view collide with the
         // panel that is doing the reading?

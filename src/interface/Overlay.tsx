@@ -113,6 +113,68 @@ const itemOrder: WorldItemId[] = (Object.keys(panels) as WorldItemId[]).sort((a,
   panels[a].index.localeCompare(panels[b].index),
 )
 
+const TOUR_STORAGE_KEY = 'floating-island:toured'
+const TOUR_STEP_MS = 900
+
+/**
+ * Point at the six objects once, on a device that cannot hover.
+ *
+ * On a desktop the affordance is hover: move the mouse across the island and
+ * labels appear, which is how a visitor learns the objects are chapters. A touch
+ * screen has no equivalent, so every label stayed invisible until something had
+ * already been tapped — the intro copy promised "every object opens a chapter"
+ * and then left the visitor to guess which shapes those were.
+ *
+ * So the island introduces itself: each label appears in chapter order, one at a
+ * time, and then they all go. One at a time is not decoration — six constant-size
+ * labels shown together overlap badly on a 390px screen, while in sequence they
+ * never collide. Nothing moves, nothing opens, and it happens once per visitor.
+ *
+ * Cross-fades are left to CSS, which already collapses them to nothing under
+ * `prefers-reduced-motion`: the labels snap instead of fading, and the tour still
+ * does its job.
+ */
+function useIslandTour(introComplete: boolean) {
+  const setPreviewItem = useWorldStore((state) => state.setPreviewItem)
+  const activeItem = useWorldStore((state) => state.activeItem)
+
+  useEffect(() => {
+    if (!introComplete || activeItem) return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    if (window.matchMedia('(hover: hover)').matches) return
+    try {
+      if (window.localStorage.getItem(TOUR_STORAGE_KEY)) return
+      window.localStorage.setItem(TOUR_STORAGE_KEY, 'done')
+    } catch {
+      // A blocked storage partition means the tour repeats. Better than a
+      // visitor who never learns the island is clickable.
+    }
+
+    const timers = itemOrder.map((item, step) =>
+      window.setTimeout(() => {
+        setPreviewItem(item)
+        /*
+         * The order the tour actually ran in, for the test that asserts it.
+         *
+         * Sampling the labels from outside cannot do this reliably: each step
+         * lasts 900ms and one slow frame swallows a whole step, so a poll-based
+         * version dropped a label roughly every other run and reported it as the
+         * tour being broken. Same reasoning as `__ISLAND_FLIGHT__` — the thing
+         * that knows is the thing that publishes.
+         */
+        window.__ISLAND_TOUR__ = [...(window.__ISLAND_TOUR__ ?? []), item]
+      }, step * TOUR_STEP_MS),
+    )
+    timers.push(
+      window.setTimeout(() => setPreviewItem(null), itemOrder.length * TOUR_STEP_MS),
+    )
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer))
+      setPreviewItem(null)
+    }
+  }, [activeItem, introComplete, setPreviewItem])
+}
+
 const menuLabels: Record<WorldItemId, string> = {
   about: 'About Lisa',
   art: 'My Paintings',
@@ -145,6 +207,7 @@ export function Overlay({
   const toggleTheme = useWorldStore((state) => state.toggleTheme)
   const panel = activeItem ? panels[activeItem] : null
   const PanelIcon = activeItem ? panelIcons[activeItem] : null
+  useIslandTour(introComplete)
 
   useEffect(() => {
     if (!menuOpen && !activeItem) return

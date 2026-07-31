@@ -43,7 +43,8 @@ export function InteractiveObject({
   const [labelY, setLabelY] = useState(labelGap)
   const setActiveItem = useWorldStore((state) => state.setActiveItem)
   const isActive = useWorldStore((state) => state.activeItem === id)
-  const highlighted = hovered || focused || isActive
+  const isPreviewed = useWorldStore((state) => state.previewItem === id)
+  const highlighted = hovered || focused || isActive || isPreviewed
 
   // Publish this group so the focus probe can verify the camera really sees it,
   // and measure it so the label sits just above it rather than at a fixed height.
@@ -85,10 +86,18 @@ export function InteractiveObject({
       }}
     >
       {children}
+      {/*
+       * No `distanceFactor`. The label is interface, not scenery: it exists to
+       * tell you what you are about to open, so it has to be the same readable
+       * size wherever the camera happens to be. Scaling it with distance meant
+       * that at the home framing — the one view where a visitor is deciding what
+       * to click — "SELECTED WORK" rendered as a 29x8 pixel smudge, and 19x5 on a
+       * phone. Only one label is ever shown at a time, so a constant size cannot
+       * collide with its neighbours.
+       */}
       <Html
         center
         position={[0, labelY, 0]}
-        distanceFactor={9}
         zIndexRange={[8, 2]}
         style={{ pointerEvents: 'none' }}
       >
