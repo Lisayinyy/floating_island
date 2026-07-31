@@ -22,11 +22,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# QA render output (regenerate with qa/verify.py)
-qa/shots/
-
-# Python bytecode. `verify.py` is imported as a module by ad-hoc debug scripts,
-# which is what put a .pyc in here in the first place.
-__pycache__/
-*.pyc

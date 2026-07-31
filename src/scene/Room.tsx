@@ -1,42 +1,12 @@
 import { RoundedBox } from '@react-three/drei'
-import { useEffect, useMemo } from 'react'
 import { useWorldStore } from '../store/worldStore'
 import { FloatingIsland } from './FloatingIsland'
 import { InteractiveObject } from './InteractiveObject'
-import {
-  PHOTO_COUNT,
-  createBoardTexture,
-  createConsoleScreenTexture,
-  createEaselCanvasTexture,
-  createLaptopScreenTexture,
-  createPhotoTexture,
-} from './screenTexture'
-import type { CanvasTexture } from 'three'
 
 const dark = '#5b5254'
 const cream = '#eee7df'
 const wood = '#c8b4aa'
 const red = '#c47d90'
-
-/**
- * Paint a screen once and release its GPU memory when the object unmounts.
- * The factories are module-level constants, so the memo never re-runs.
- */
-function useScreenTexture(create: () => CanvasTexture) {
-  const texture = useMemo(create, [create])
-  useEffect(() => () => texture.dispose(), [texture])
-  return texture
-}
-
-/** Same contract for the surfaces that need a set of textures rather than one. */
-function usePaintedTextures(create: () => CanvasTexture[]) {
-  const textures = useMemo(create, [create])
-  useEffect(() => () => textures.forEach((texture) => texture.dispose()), [textures])
-  return textures
-}
-
-const createPhotoTextures = () =>
-  Array.from({ length: PHOTO_COUNT }, (_, index) => createPhotoTexture(index))
 
 function Desk() {
   return (
@@ -56,35 +26,17 @@ function Desk() {
   )
 }
 
-function Laptop({ isNight }: { isNight: boolean }) {
-  const screen = useScreenTexture(createLaptopScreenTexture)
-
+function Laptop() {
   return (
     <InteractiveObject id="work" label="SELECTED WORK" position={[0.4, 1.82, -1.52]} scale={0.9}>
       <mesh position={[0, 0.34, 0]} rotation={[-0.1, 0, 0]} castShadow>
         <boxGeometry args={[1.45, 0.86, 0.08]} />
         <meshStandardMaterial color={dark} metalness={0.25} roughness={0.45} />
       </mesh>
-      {/* The screen carries a painted editor rather than a flat swatch: every
-          chapter view flies close enough that an empty pane became the least
-          finished surface on the island. */}
       <mesh position={[0, 0.34, 0.046]} rotation={[-0.1, 0, 0]}>
         <planeGeometry args={[1.25, 0.66]} />
-        <meshStandardMaterial
-          map={screen}
-          emissiveMap={screen}
-          emissive="#ffffff"
-          emissiveIntensity={isNight ? 0.92 : 0.5}
-          roughness={0.32}
-          toneMapped={false}
-        />
+        <meshStandardMaterial color="#dfb5c2" emissive="#a95676" emissiveIntensity={0.42} />
       </mesh>
-      {/* Backlight spill, so the lit screen actually affects the desk. Night
-          only: by day it is invisible, and every extra light costs a forward
-          render pass on every lit fragment. */}
-      {isNight && (
-        <pointLight position={[0, 0.42, 0.55]} intensity={2.6} distance={2.4} decay={2} color="#cfd8ea" />
-      )}
       <mesh position={[0, -0.04, 0.34]} rotation={[0.05, 0, 0]} castShadow>
         <boxGeometry args={[1.55, 0.08, 0.92]} />
         <meshStandardMaterial color={dark} metalness={0.2} roughness={0.5} />
@@ -122,36 +74,40 @@ function PrototypeDeck() {
 }
 
 function PhotoWall() {
-  const photoTextures = usePaintedTextures(createPhotoTextures)
   const photos: Array<{
     position: [number, number, number]
     rotation: [number, number, number]
     size: [number, number]
     frame: string
+    photo: string
   }> = [
     {
       position: [-0.48, 0.22, 0],
       rotation: [0, 0, -0.06],
       size: [0.78, 0.98],
       frame: '#c2708c',
+      photo: '#efd2dc',
     },
     {
       position: [0.38, 0.34, 0.025],
       rotation: [0, 0, 0.08],
       size: [0.72, 0.82],
       frame: '#8b687b',
+      photo: '#d8b2c2',
     },
     {
       position: [-0.3, -0.62, 0.035],
       rotation: [0, 0, 0.04],
       size: [0.68, 0.58],
       frame: '#a98491',
+      photo: '#e8c8cf',
     },
     {
       position: [0.5, -0.48, 0.05],
       rotation: [0, 0, -0.08],
       size: [0.82, 0.66],
       frame: '#d18ba1',
+      photo: '#f0d7df',
     },
   ]
 
@@ -162,43 +118,27 @@ function PhotoWall() {
       position={[-3.72, 2.82, -2.51]}
       scale={0.88}
     >
-      {/*
-       * The photo wall's hit area.
-       *
-       * Four separate frames with deliberate gaps between them, and the gap is
-       * exactly where someone aims: a real tap at the centre of this chapter's
-       * own bounding box went straight between two frames, through to the wall
-       * behind, and opened nothing. On a phone, where the whole island is a few
-       * hundred pixels wide, that was the only chapter of six a real tap could
-       * not open.
-       *
-       * So the wall gets what a button gets: padding. An invisible plane spanning
-       * the frames makes "the photo wall" one target instead of four small ones.
-       * It has to be transparent rather than `visible={false}`, because three.js
-       * does not raycast invisible objects — and it is tagged as a hit area so
-       * silhouette mode leaves it alone, which would otherwise flatten it into a
-       * solid dark rectangle pasted over the pictures.
-       */}
-      <mesh name="about-hit-area" position={[0.02, -0.08, 0]} userData={{ hitArea: true }}>
-        <planeGeometry args={[1.78, 1.66]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      {photos.map(({ position, rotation, size, frame }, index) => (
+      {photos.map(({ position, rotation, size, frame, photo }, index) => (
         <group key={index} position={position} rotation={rotation}>
           <RoundedBox args={[size[0], size[1], 0.12]} radius={0.035} castShadow>
             <meshStandardMaterial color={frame} roughness={0.72} />
           </RoundedBox>
-          {/* A painted picture rather than a swatch with a circle and a capsule
-              stuck on it. The two primitives were a stand-in for a subject, and
-              from the chapter's own close-up they read as exactly that. */}
           <mesh position={[0, 0, 0.068]}>
             <planeGeometry args={[size[0] - 0.14, size[1] - 0.14]} />
             <meshStandardMaterial
-              map={photoTextures[index]}
+              color={photo}
               emissive="#a95575"
-              emissiveIntensity={0.08}
+              emissiveIntensity={0.1}
               roughness={0.9}
             />
+          </mesh>
+          <mesh position={[0, 0.06, 0.078]}>
+            <circleGeometry args={[Math.min(size[0], size[1]) * 0.13, 24]} />
+            <meshStandardMaterial color={index % 2 === 0 ? '#f7e8ed' : '#bc7188'} />
+          </mesh>
+          <mesh position={[0, -size[1] * 0.22, 0.079]}>
+            <capsuleGeometry args={[0.1, 0.14, 5, 12]} />
+            <meshStandardMaterial color={index % 2 === 0 ? '#bc7188' : '#f7e8ed'} />
           </mesh>
         </group>
       ))}
@@ -215,22 +155,6 @@ function GraduationCap() {
       rotation={[0, -0.12, -0.04]}
       scale={0.68}
     >
-      {/* The cap is a board, a head and a tassel dangling off to one side, so its
-          own outline is mostly air: a grid of real taps across the middle of it
-          opened the chapter 7 times out of 16, the rest falling through the gap
-          between board and tassel to the wall behind. A box the size of the cap's
-          own footprint makes the whole silhouette one target.
-
-          Deliberately not inflated to a comfortable 44px: on a phone all six
-          chapter objects sit inside a cluster 173x108px across — the island is
-          already as wide as the screen — so anything padded to finger size would
-          be stealing taps from its neighbours. On a phone the labels and the menu
-          are the reliable way in, which is what the island's self-introduction is
-          for; this only fixes aiming at something and hitting nothing. */}
-      <mesh name="experience-hit-area" position={[0.01, -0.05, 0]} userData={{ hitArea: true }}>
-        <boxGeometry args={[1.24, 0.76, 1.02]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
       <mesh position={[0, 0.2, 0]} rotation={[0, 0.16, 0]} castShadow>
         <boxGeometry args={[1.22, 0.1, 1.02]} />
         <meshStandardMaterial color="#5a3d50" roughness={0.72} />
@@ -321,27 +245,28 @@ function CandleSconce({ isNight }: { isNight: boolean }) {
 }
 
 function FutureArtwork() {
-  const board = useScreenTexture(createBoardTexture)
-
   return (
     <group position={[2.65, 3.42, -2.53]} rotation={[0, 0, 0.025]}>
       <RoundedBox args={[2.45, 1.52, 0.11]} radius={0.045} castShadow>
         <meshStandardMaterial color="#8b7580" roughness={0.72} />
       </RoundedBox>
-      {/* A working board — wireframe, colour study, sketch — rather than a blank
-          green rectangle. It is the largest flat surface in the cabin and sits
-          right behind the desk, so several chapter views include it. */}
       <mesh position={[0, 0, 0.062]}>
         <planeGeometry args={[2.12, 1.2]} />
-        <meshStandardMaterial map={board} roughness={0.94} />
+        <meshStandardMaterial color="#98aa9f" roughness={0.94} />
+      </mesh>
+      <mesh position={[-0.72, 0.42, 0.073]}>
+        <circleGeometry args={[0.045, 16]} />
+        <meshStandardMaterial color="#d7899d" />
+      </mesh>
+      <mesh position={[-0.56, 0.42, 0.073]}>
+        <circleGeometry args={[0.045, 16]} />
+        <meshStandardMaterial color="#d0a369" />
       </mesh>
     </group>
   )
 }
 
 function PaintingEasel() {
-  const easel = useScreenTexture(createEaselCanvasTexture)
-
   return (
     <InteractiveObject
       id="art"
@@ -369,10 +294,20 @@ function PaintingEasel() {
       </RoundedBox>
       <mesh position={[0, 1.02, 0.081]}>
         <planeGeometry args={[2.04, 1.24]} />
-        <meshStandardMaterial map={easel} roughness={0.94} />
+        <meshStandardMaterial color="#f5efea" roughness={0.94} />
       </mesh>
-      {/* Wet dabs left on the canvas edge, kept from the old placeholder — the
-          circle-and-two-bars "painting" underneath is now a painted texture. */}
+      <mesh position={[-0.42, 1.08, 0.095]} rotation={[0, 0, -0.32]}>
+        <circleGeometry args={[0.35, 32]} />
+        <meshStandardMaterial color="#b96d86" roughness={0.86} />
+      </mesh>
+      <mesh position={[0.38, 0.85, 0.098]} rotation={[0, 0, 0.22]}>
+        <planeGeometry args={[0.76, 0.2]} />
+        <meshStandardMaterial color="#789487" roughness={0.9} />
+      </mesh>
+      <mesh position={[0.35, 1.3, 0.1]} rotation={[0, 0, -0.1]}>
+        <planeGeometry args={[0.62, 0.16]} />
+        <meshStandardMaterial color="#d3a25e" roughness={0.86} />
+      </mesh>
       <mesh position={[-0.88, 1.52, 0.1]}>
         <circleGeometry args={[0.035, 16]} />
         <meshStandardMaterial color="#d98788" />
@@ -389,37 +324,16 @@ function PaintingEasel() {
   )
 }
 
-function AICreativeConsole({ isNight }: { isNight: boolean }) {
-  const screen = useScreenTexture(createConsoleScreenTexture)
-
+function AICreativeConsole() {
   return (
-    /* Front-left of the rug, not tucked against the right end wall. From there
-       the derived chapter camera had the window ledge and the porch post in the
-       way, so opening this chapter framed timber instead of the console. */
-    <InteractiveObject
-      id="toolkit"
-      label="AI CREATIVE TOOLKIT"
-      position={[-1.95, 1.08, 1.05]}
-      rotation={[0, 0.5, 0]}
-      scale={0.9}
-    >
+    <InteractiveObject id="toolkit" label="AI CREATIVE TOOLKIT" position={[3.25, 1.08, -1.72]} scale={0.9}>
       <RoundedBox args={[1.75, 1.85, 0.82]} radius={0.08} castShadow>
         <meshStandardMaterial color="#ddd3ce" roughness={0.62} metalness={0.06} />
       </RoundedBox>
       <mesh position={[0, 0.28, 0.43]}>
         <planeGeometry args={[1.35, 0.82]} />
-        <meshStandardMaterial
-          map={screen}
-          emissiveMap={screen}
-          emissive="#ffffff"
-          emissiveIntensity={isNight ? 0.95 : 0.55}
-          roughness={0.34}
-          toneMapped={false}
-        />
+        <meshStandardMaterial color="#bfd2c8" emissive="#719583" emissiveIntensity={0.52} />
       </mesh>
-      {isNight && (
-        <pointLight position={[0, 0.32, 0.95]} intensity={2.2} distance={2.2} decay={2} color="#b9d6c4" />
-      )}
       {[-0.35, 0, 0.35].map((x, index) => (
         <mesh key={x} position={[x, -0.48, 0.46]} castShadow>
           <cylinderGeometry args={[0.1, 0.1, 0.06, 24]} />
@@ -464,9 +378,7 @@ function Chair() {
 }
 
 function DeskLamp({ isNight }: { isNight: boolean }) {
-  // Low by day on purpose: a strong emissive washed the shade to a flat white
-  // patch that read as folded paper rather than a lit lampshade.
-  const glow = isNight ? 2.8 : 0.42
+  const glow = isNight ? 2.8 : 0.28
 
   return (
     <group position={[-1.15, 1.78, -1.25]} rotation={[0, 0.18, 0]}>
@@ -487,15 +399,6 @@ function DeskLamp({ isNight }: { isNight: boolean }) {
           side={2}
         />
       </mesh>
-      {/* The lamp keeps a warm pool on the desk in both themes, so the cabin
-          interior never falls completely flat under the new roof. */}
-      <pointLight
-        position={[0.3, 1.1, 0.24]}
-        intensity={isNight ? 9 : 5.2}
-        distance={isNight ? 6 : 4.6}
-        decay={2}
-        color="#ffc98d"
-      />
     </group>
   )
 }
@@ -569,203 +472,6 @@ function SketchbookCorner() {
   )
 }
 
-/**
- * The right-hand end wall, built as framing timber around two real openings.
- *
- * A boolean cut is not available here, so the wall is assembled from a bottom
- * strip, a top strip and three columns; the gaps between them *are* the windows.
- * This is the only face of the cabin whose outside is turned towards the camera,
- * so two lit panes do most of the work of making the island read as inhabited
- * after dark — the reference site gets the same effect from a single warm
- * rectangle in an otherwise black silhouette.
- *
- * It deliberately stops short of the open front (`FRONT_X`). A full-depth slab
- * turned the right third of the room into a pocket the camera can never see
- * into, and the AI console was parked in it: opening that chapter framed a blank
- * wall. The focus probe in `World.tsx` now asserts this stays fixed.
- *
- * Local axes inside this group: +x runs along the wall (world −z), +z points
- * outward, away from the room (world +x).
- */
-function WindowWall({ isNight }: { isNight: boolean }) {
-  const frame = isNight ? '#241a2b' : '#b39481'
-  const wall = isNight ? '#2c2131' : '#c2a695'
-
-  // Wall extent along its own length. BACK_X meets the back wall; FRONT_X is
-  // where it stops so the sight line into the right of the room stays open.
-  const BACK_X = 2.275
-  const FRONT_X = -1.35
-  const width = BACK_X - FRONT_X
-  const midX = (BACK_X + FRONT_X) / 2
-
-  const openingY = 0.4
-  const openingH = 1.9
-  const openingW = 1.2
-  // Two openings with a narrow mullion column between them.
-  const centres = [FRONT_X + 0.35 + openingW / 2, BACK_X - 0.575 - openingW / 2]
-  const gapStart = centres[0] + openingW / 2
-  const gapEnd = centres[1] - openingW / 2
-
-  const panels: Array<{ key: string; args: [number, number, number]; pos: [number, number, number] }> = [
-    { key: 'sill-course', args: [width, 1.85, 0.18], pos: [midX, -1.475, 0] },
-    { key: 'header-course', args: [width, 1.05, 0.18], pos: [midX, 1.875, 0] },
-    {
-      key: 'post-front',
-      args: [centres[0] - openingW / 2 - FRONT_X, openingH, 0.18],
-      pos: [(FRONT_X + centres[0] - openingW / 2) / 2, openingY, 0],
-    },
-    {
-      key: 'post-mid',
-      args: [gapEnd - gapStart, openingH, 0.18],
-      pos: [(gapStart + gapEnd) / 2, openingY, 0],
-    },
-    {
-      key: 'post-back',
-      args: [BACK_X - (centres[1] + openingW / 2), openingH, 0.18],
-      pos: [(BACK_X + centres[1] + openingW / 2) / 2, openingY, 0],
-    },
-  ]
-
-  return (
-    <group position={[5.12, 2.65, -0.52]} rotation={[0, Math.PI / 2, 0]}>
-      {panels.map(({ key, args, pos }) => (
-        <mesh key={key} name={`wall-${key}`} position={pos} receiveShadow castShadow>
-          <boxGeometry args={args} />
-          <meshStandardMaterial color={wall} roughness={0.95} />
-        </mesh>
-      ))}
-
-      {centres.map((cx) => (
-        <group key={cx} position={[cx, openingY, 0]}>
-          {/* Glass. Warm and self-lit after dark; a cool sky reflection by day. */}
-          <mesh name="window-glass">
-            <planeGeometry args={[openingW, openingH]} />
-            <meshStandardMaterial
-              color={isNight ? '#ffd8a2' : '#cfdce2'}
-              emissive={isNight ? '#ff9f4f' : '#9fb6c4'}
-              emissiveIntensity={isNight ? 2.4 : 0.34}
-              roughness={0.3}
-              side={2}
-            />
-          </mesh>
-
-          {/* Mullions split each opening into four panes. */}
-          <mesh name="window-mullion-v" position={[0, 0, 0.05]} castShadow>
-            <boxGeometry args={[0.06, openingH, 0.07]} />
-            <meshStandardMaterial color={frame} roughness={0.9} />
-          </mesh>
-          <mesh name="window-mullion-h" position={[0, 0.05, 0.05]} castShadow>
-            <boxGeometry args={[openingW, 0.06, 0.07]} />
-            <meshStandardMaterial color={frame} roughness={0.9} />
-          </mesh>
-
-          {/* Casing around the opening. */}
-          {(
-            [
-              [[openingW + 0.16, 0.11, 0.09], [0, openingH / 2 + 0.05, 0.06]],
-              [[openingW + 0.16, 0.11, 0.09], [0, -openingH / 2 - 0.05, 0.06]],
-              [[0.11, openingH, 0.09], [-openingW / 2 - 0.05, 0, 0.06]],
-              [[0.11, openingH, 0.09], [openingW / 2 + 0.05, 0, 0.06]],
-            ] as Array<[[number, number, number], [number, number, number]]>
-          ).map(([args, pos], index) => (
-            <mesh key={index} name={`window-casing-${index}`} position={pos} castShadow>
-              <boxGeometry args={args} />
-              <meshStandardMaterial color={frame} roughness={0.9} />
-            </mesh>
-          ))}
-
-          {/* Outside ledge, to catch the low sun and cast a small shadow. */}
-          <mesh name="window-ledge" position={[0, -openingH / 2 - 0.13, 0.14]} castShadow>
-            <boxGeometry args={[openingW + 0.42, 0.1, 0.4]} />
-            <meshStandardMaterial color={frame} roughness={0.92} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* One shared spill light for both openings rather than one each: the
-          glow has to be a light source and not a sticker, but a forward renderer
-          pays for every light on every lit fragment. */}
-      <pointLight
-        position={[(centres[0] + centres[1]) / 2, openingY, -0.75]}
-        intensity={isNight ? 8 : 1.8}
-        distance={isNight ? 5.2 : 3}
-        decay={2}
-        color="#ffc287"
-      />
-    </group>
-  )
-}
-
-/**
- * A cutaway cabin shell: a shed roof, its beams and two front posts.
- *
- * The room used to be two bare floating wall planes, which read as "furniture
- * on a disc" rather than a place. A roof gives the island a recognisable
- * silhouette (the plantpot.studio cabin does the same job) while the open front
- * keeps every interactive object visible — the camera sits low enough that the
- * sight line to the desk passes far below the roof edge.
- */
-function CabinShell({ isNight }: { isNight: boolean }) {
-  const beam = isNight ? '#3a2b39' : '#a58779'
-  const shingle = isNight ? '#332634' : '#96786d'
-  const slope = Math.atan2(1.05, 3.55)
-
-  return (
-    <group>
-      {/* Roof slab: high at the back wall, lower over the open front. */}
-      <group position={[0, 5.12, -1.05]} rotation={[-slope, 0, 0]}>
-        <RoundedBox name="roof-slab" args={[11.35, 0.2, 4.15]} radius={0.06} castShadow receiveShadow>
-          <meshStandardMaterial color={shingle} roughness={0.95} />
-        </RoundedBox>
-        {/* Shingle rows for a little texture in raking light. */}
-        {[-1.35, -0.3, 0.75].map((z) => (
-          <mesh key={z} name={`roof-shingle-${z}`} position={[0, 0.12, z]} receiveShadow>
-            <boxGeometry args={[11.1, 0.06, 0.9]} />
-            <meshStandardMaterial color={isNight ? '#3b2c3c' : '#a2857a'} roughness={0.98} />
-          </mesh>
-        ))}
-        {/* Fascia along the front edge. */}
-        <mesh name="roof-fascia" position={[0, -0.02, 2.14]} castShadow>
-          <boxGeometry args={[11.35, 0.3, 0.16]} />
-          <meshStandardMaterial color={beam} roughness={0.9} />
-        </mesh>
-      </group>
-
-      {/* Exposed rafters under the slab. */}
-      {[-4.6, -2.3, 0, 2.3, 4.6].map((x) => (
-        <mesh
-          key={x}
-          name={`roof-rafter-${x}`}
-          position={[x, 5.0, -1.05]}
-          rotation={[-slope, 0, 0]}
-          castShadow
-        >
-          <boxGeometry args={[0.16, 0.14, 4.05]} />
-          <meshStandardMaterial color={beam} roughness={0.9} />
-        </mesh>
-      ))}
-
-      {/* Front posts holding the low edge of the roof. */}
-      {[-5.12, 5.12].map((x) => (
-        <mesh key={x} name={`cabin-post-${x}`} position={[x, 2.3, 0.86]} castShadow>
-          <cylinderGeometry args={[0.14, 0.17, 4.6, 12]} />
-          <meshStandardMaterial color={beam} roughness={0.92} />
-        </mesh>
-      ))}
-
-      {/* Header beam tying the two posts together. */}
-      <mesh name="cabin-header-beam" position={[0, 4.52, 0.86]} castShadow>
-        <boxGeometry args={[10.6, 0.22, 0.22]} />
-        <meshStandardMaterial color={beam} roughness={0.9} />
-      </mesh>
-
-      {/* Right-hand end wall so the cabin is not open on three sides. It carries
-          the two windows, which is why it is framed rather than a single slab. */}
-      <WindowWall isNight={isNight} />
-    </group>
-  )
-}
-
 export function Room() {
   const isNight = useWorldStore((state) => state.theme === 'night')
 
@@ -774,20 +480,18 @@ export function Room() {
       <FloatingIsland isNight={isNight} />
 
       <group position={[-1.05, 0.42, 0]}>
-        <mesh name="wall-back" position={[0, 2.65, -2.7]} receiveShadow castShadow>
+        <mesh position={[0, 2.65, -2.7]} receiveShadow castShadow>
           <boxGeometry args={[10.4, 4.8, 0.18]} />
-          <meshStandardMaterial color={isNight ? '#3d2c3e' : '#d5c0ae'} roughness={0.95} />
+          <meshStandardMaterial color={isNight ? '#3d2c3e' : '#ebe4df'} roughness={0.95} />
         </mesh>
-        <mesh name="wall-left" position={[-5.12, 2.65, -0.52]} rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
+        <mesh position={[-5.12, 2.65, -0.52]} rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
           <boxGeometry args={[4.55, 4.8, 0.18]} />
-          <meshStandardMaterial color={isNight ? '#2c2131' : '#c2a695'} roughness={0.95} />
+          <meshStandardMaterial color={isNight ? '#2c2131' : '#ddd4d1'} roughness={0.95} />
         </mesh>
-        <mesh name="cabin-floor" position={[0.2, -0.08, -0.55]} rotation={[-Math.PI / 2, 0, -0.02]} receiveShadow>
+        <mesh position={[0.2, -0.08, -0.55]} rotation={[-Math.PI / 2, 0, -0.02]} receiveShadow>
           <planeGeometry args={[5.7, 4.1]} />
-          <meshStandardMaterial color={isNight ? '#633b50' : '#c9a7ae'} roughness={1} />
+          <meshStandardMaterial color={isNight ? '#633b50' : '#d8b8bf'} roughness={1} />
         </mesh>
-
-        <CabinShell isNight={isNight} />
 
         <Desk />
         <Chair />
@@ -795,13 +499,13 @@ export function Room() {
         <FlowerVase />
         <Headphones />
         <SketchbookCorner />
-        <Laptop isNight={isNight} />
+        <Laptop />
         <PrototypeDeck />
         <PhotoWall />
         <GraduationCap />
         <Books />
         <PaintingEasel />
-        <AICreativeConsole isNight={isNight} />
+        <AICreativeConsole />
         <CandleSconce isNight={isNight} />
         <FutureArtwork />
       </group>

@@ -1,6 +1,6 @@
 import { RoundedBox } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import {
   BufferGeometry,
   CanvasTexture,
@@ -9,20 +9,12 @@ import {
   Float32BufferAttribute,
   Group,
   InstancedMesh,
-  MathUtils,
   PointLight,
   Object3D,
   SRGBColorSpace,
+  Vector2,
   Vector3,
 } from 'three'
-import {
-  createIslandBodyGeometry,
-  createIslandRimGeometry,
-  createIslandTopGeometry,
-  createRockLumps,
-} from './islandGeometry'
-import { prefersReducedMotion } from './motion'
-import type { ThreeEvent } from '@react-three/fiber'
 
 type FloatingIslandProps = {
   isNight: boolean
@@ -32,6 +24,16 @@ const dayStone = ['#fffaf4', '#ead9cd', '#d5bca8']
 const nightStone = ['#5b4b5a', '#493b4c', '#392e40']
 const dayTreeLeaves = ['#eee7e2', '#e4d6dc', '#d7e1d8']
 const nightTreeLeaves = ['#8e7d89', '#9b808c', '#718479']
+
+const islandProfile = [
+  new Vector2(0, -5.38),
+  new Vector2(1.4, -5.02),
+  new Vector2(2.72, -4.32),
+  new Vector2(4.22, -3.3),
+  new Vector2(5.92, -2.08),
+  new Vector2(7.02, -1.08),
+  new Vector2(7.58, -0.4),
+]
 
 type TreeBranch = {
   points: Array<[number, number, number]>
@@ -446,18 +448,11 @@ function IslandPlant({
   )
 }
 
-/** Idle lean of the tree, in radians. Small on purpose: the crown is ~4 units
- *  up, so even this is several centimetres of travel at the tip. */
-const TREE_SWAY = 0.019
-const TREE_BASE_YAW = -0.08
-
 function MemoryTree({ isNight }: FloatingIslandProps) {
   const trunk = isNight ? '#745b68' : '#c9b9b1'
   const leaves = isNight ? nightTreeLeaves : dayTreeLeaves
   const leafGeometry = useMemo(() => createAlmondLeafGeometry(), [])
   const leafInstances = useMemo(() => createLeafInstances(), [])
-  const groupRef = useRef<Group>(null)
-  const leanRef = useRef(0)
   const leavesByColor = useMemo(
     () => [0, 1, 2].map((colorIndex) =>
       leafInstances.filter((leaf) => leaf.colorIndex === colorIndex),
@@ -465,43 +460,11 @@ function MemoryTree({ isNight }: FloatingIslandProps) {
     [leafInstances],
   )
 
-  /**
-   * Wind, applied by rotating the whole tree rather than the 500-odd leaf
-   * instances. The group's origin sits at the trunk base, so rotating it pivots
-   * exactly where a tree bends — the roots stay planted and the crown swings.
-   * Re-writing every instance matrix each frame would look marginally better and
-   * cost far more.
-   *
-   * The pointer adds a lean on top, so moving the cursor across the scene pushes
-   * the crown. At rest the pointer reads (0, 0), which keeps headless
-   * screenshots byte-comparable between builds.
-   */
-  useFrame((state, delta) => {
-    const group = groupRef.current
-    if (!group) return
-    if (prefersReducedMotion()) {
-      group.rotation.set(0, TREE_BASE_YAW, 0)
-      return
-    }
-    const elapsed = state.clock.elapsedTime
-    const gust = 0.65 + 0.35 * Math.sin(elapsed * 0.23)
-    leanRef.current = MathUtils.damp(leanRef.current, state.pointer.x, 2.6, delta)
-
-    group.rotation.z =
-      (Math.sin(elapsed * 0.62) * 0.7 + Math.sin(elapsed * 1.43 + 1.1) * 0.3) * TREE_SWAY * gust -
-      leanRef.current * TREE_SWAY * 1.5
-    group.rotation.x =
-      Math.sin(elapsed * 0.51 + 0.6) * TREE_SWAY * 0.5 * gust +
-      MathUtils.damp(0, state.pointer.y, 1, delta) * TREE_SWAY
-    group.rotation.y = TREE_BASE_YAW + Math.sin(elapsed * 0.37) * TREE_SWAY * 0.4
-  })
-
   return (
     <group
-      ref={groupRef}
-      position={[4.78, 0.1, -2.92]}
-      rotation={[0, TREE_BASE_YAW, 0]}
-      scale={[0.95, 1.04, 0.95]}
+      position={[5.62, 0.08, -3.02]}
+      rotation={[0, -0.08, 0]}
+      scale={[1.18, 1.34, 1.18]}
     >
       {treeBranches.map((branch, index) => (
         <CurvedBranch
@@ -647,92 +610,46 @@ function ArrivalPath({ isNight }: FloatingIslandProps) {
   )
 }
 
-/**
- * Shared bookkeeping for the island's small pokeable details.
- *
- * Returns a decaying 1 → 0 envelope since the last poke, plus the handlers that
- * make the thing feel clickable. Time comes from `performance.now()` rather than
- * the render clock so a click handler can stamp it without needing a frame.
- */
-function usePoke(duration = 1.15) {
-  const pokedAt = useRef(-Infinity)
-
-  const poke = (event: ThreeEvent<MouseEvent>) => {
-    event.stopPropagation()
-    pokedAt.current = performance.now()
-  }
-
-  const hover = (event: ThreeEvent<PointerEvent>, isHovered: boolean) => {
-    event.stopPropagation()
-    document.body.classList.toggle('is-interacting', isHovered)
-  }
-
-  const energy = () => {
-    const age = (performance.now() - pokedAt.current) / 1000
-    if (age < 0 || age > duration) return 0
-    const remaining = 1 - age / duration
-    return remaining * remaining
-  }
-
-  return { poke, hover, energy }
-}
-
 function Campfire({ isNight }: FloatingIslandProps) {
   const flameRef = useRef<Group>(null)
   const glowRef = useRef<PointLight>(null)
   const emberRef = useRef<Group>(null)
-  const { poke, hover, energy } = usePoke()
-  // Rendered state, so the daylight embers can mount only while they matter.
-  const [stoked, setStoked] = useState(false)
 
   useFrame((state) => {
+    if (!isNight) {
+      if (glowRef.current) glowRef.current.intensity = 0
+      return
+    }
+
     const elapsed = state.clock.elapsedTime
-    const boost = energy()
-    if (boost > 0.02 !== stoked) setStoked(boost > 0.02)
     const flicker =
       Math.sin(elapsed * 8.2) * 0.06 +
-      Math.sin(elapsed * 13.7 + 0.8) * 0.035 +
-      // A poked fire flares and crackles harder, not just bigger.
-      Math.sin(elapsed * 26) * boost * 0.12
+      Math.sin(elapsed * 13.7 + 0.8) * 0.035
 
     if (flameRef.current) {
       flameRef.current.scale.set(
-        (1 - flicker * 0.35) * (1 + boost * 0.3),
-        (1 + flicker) * (1 + boost * 0.62),
-        (1 - flicker * 0.25) * (1 + boost * 0.3),
+        1 - flicker * 0.35,
+        1 + flicker,
+        1 - flicker * 0.25,
       )
       flameRef.current.rotation.z = Math.sin(elapsed * 4.6) * 0.035
     }
 
     if (glowRef.current) {
-      // The fire stays lit in daylight too: it is the one warm anchor that
-      // keeps the pastel day scene from flattening out.
-      const base = isNight ? 24 : 10
       glowRef.current.intensity =
-        (base +
-          Math.sin(elapsed * 9.1) * base * 0.13 +
-          Math.sin(elapsed * 15.4 + 0.5) * base * 0.07) *
-        (1 + boost * 1.5)
+        24 +
+        Math.sin(elapsed * 9.1) * 3.2 +
+        Math.sin(elapsed * 15.4 + 0.5) * 1.6
     }
 
     if (emberRef.current) {
-      // Poked embers climb further and faster before looping.
-      const climb = 0.28 * (1 + boost * 3.4)
-      emberRef.current.position.y = 0.06 + ((elapsed * (0.18 + boost * 0.9)) % climb)
+      emberRef.current.position.y = 0.06 + ((elapsed * 0.18) % 0.28)
       emberRef.current.rotation.y = elapsed * 0.45
-      emberRef.current.scale.setScalar(1 + boost * 0.85)
     }
   })
 
   return (
-    <group
-      name="campfire"
-      position={[3.18, 0.4, 4.2]}
-      scale={0.78}
-      onClick={poke}
-      onPointerOver={(event) => hover(event, true)}
-      onPointerOut={(event) => hover(event, false)}
-    >
+    <group position={[3.18, 0.4, 4.2]} scale={0.78}>
       {[0, Math.PI / 2, Math.PI / 4].map((rotation, index) => (
         <mesh
           key={rotation}
@@ -748,7 +665,7 @@ function Campfire({ isNight }: FloatingIslandProps) {
         </mesh>
       ))}
 
-      <group ref={flameRef} position={[0, 0.72, 0]}>
+      <group ref={flameRef} position={[0, 0.72, 0]} visible={isNight}>
         <mesh scale={[0.58, 1.05, 0.58]}>
           <sphereGeometry args={[0.48, 10, 8]} />
           <meshStandardMaterial
@@ -778,7 +695,7 @@ function Campfire({ isNight }: FloatingIslandProps) {
         </mesh>
       </group>
 
-      <group ref={emberRef} visible={isNight || stoked}>
+      <group ref={emberRef} visible={isNight}>
         {[
           [-0.27, 1.2, 0.03, 0.035],
           [0.18, 1.42, -0.08, 0.045],
@@ -794,8 +711,8 @@ function Campfire({ isNight }: FloatingIslandProps) {
       <pointLight
         ref={glowRef}
         position={[0, 1.12, 0]}
-        intensity={isNight ? 24 : 10}
-        distance={isNight ? 6.6 : 5.4}
+        intensity={isNight ? 24 : 0}
+        distance={6.2}
         decay={2}
         color="#ffad62"
       />
@@ -803,148 +720,44 @@ function Campfire({ isNight }: FloatingIslandProps) {
   )
 }
 
-function HangingLantern({ isNight }: FloatingIslandProps) {
-  const flameRef = useRef<PointLight>(null)
-  const bodyColor = isNight ? '#3c2f3c' : '#6d5762'
-  // Snuffing the lantern is the one destructive-looking interaction on the
-  // island, so it is fully reversible and never persisted: reload and it is lit.
-  const [lit, setLit] = useState(true)
-  const litRef = useRef(true)
-  litRef.current = lit
-
-  useFrame((state, delta) => {
-    if (!flameRef.current) return
-    if (!litRef.current) {
-      // Damped rather than cut, so blowing it out reads as a flame dying.
-      // `delta` from useFrame, never `clock.getDelta()`: that resets the shared
-      // clock and would break `elapsedTime` for every other animation.
-      flameRef.current.intensity = MathUtils.damp(flameRef.current.intensity, 0, 6, delta)
-      return
-    }
-    const elapsed = state.clock.elapsedTime
-    const base = isNight ? 11 : 3.4
-    flameRef.current.intensity =
-      base + Math.sin(elapsed * 5.3) * base * 0.09 + Math.sin(elapsed * 11.7 + 0.7) * base * 0.05
-  })
-
-  return (
-    <group position={[-6.55, 0.2, 2.05]} rotation={[0, 0.42, 0]}>
-      {/* Post + curved arm. */}
-      <mesh position={[0, 1.55, 0]} castShadow>
-        <cylinderGeometry args={[0.075, 0.11, 3.1, 12]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.9} />
-      </mesh>
-      <mesh position={[0.42, 3.02, 0]} rotation={[0, 0, -Math.PI / 2.35]} castShadow>
-        <cylinderGeometry args={[0.055, 0.055, 1.02, 10]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.9} />
-      </mesh>
-      <mesh position={[0.86, 2.86, 0]}>
-        <cylinderGeometry args={[0.014, 0.014, 0.36, 6]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.9} />
-      </mesh>
-
-      {/* Lantern cage. */}
-      <group
-        name="lantern-cage"
-        position={[0.86, 2.44, 0]}
-        onClick={(event) => {
-          event.stopPropagation()
-          setLit((current) => !current)
-        }}
-        onPointerOver={(event) => {
-          event.stopPropagation()
-          document.body.classList.add('is-interacting')
-        }}
-        onPointerOut={(event) => {
-          event.stopPropagation()
-          document.body.classList.remove('is-interacting')
-        }}
-      >
-        <mesh position={[0, 0.29, 0]} castShadow>
-          <coneGeometry args={[0.29, 0.22, 4]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.85} />
-        </mesh>
-        <mesh castShadow>
-          <boxGeometry args={[0.34, 0.42, 0.34]} />
-          <meshStandardMaterial
-            color={lit ? (isNight ? '#ffe0a8' : '#f6e3cd') : isNight ? '#2b2430' : '#8d7c81'}
-            emissive="#ffb163"
-            emissiveIntensity={lit ? (isNight ? 2.6 : 0.85) : 0}
-            roughness={0.4}
-            transparent
-            opacity={0.94}
-          />
-        </mesh>
-        {[-0.17, 0.17].map((x) => (
-          <mesh key={x} position={[x, 0, 0]}>
-            <boxGeometry args={[0.035, 0.44, 0.36]} />
-            <meshStandardMaterial color={bodyColor} roughness={0.85} />
-          </mesh>
-        ))}
-        <mesh position={[0, -0.25, 0]} castShadow>
-          <boxGeometry args={[0.38, 0.08, 0.38]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.85} />
-        </mesh>
-        <pointLight
-          ref={flameRef}
-          position={[0, 0, 0]}
-          intensity={isNight ? 11 : 3.4}
-          distance={isNight ? 8.5 : 5.2}
-          decay={2}
-          color="#ffb977"
-        />
-      </group>
-    </group>
-  )
-}
-
 export function FloatingIsland({ isNight }: FloatingIslandProps) {
   const stone = isNight ? nightStone : dayStone
-  const bodyGeometry = useMemo(() => createIslandBodyGeometry(), [])
-  const topGeometry = useMemo(() => createIslandTopGeometry(), [])
-  const rimGeometry = useMemo(() => createIslandRimGeometry(), [])
-  const rockLumps = useMemo(() => createRockLumps(), [])
 
   return (
     <group>
-      {/* Ground: an irregular disc, not a perfect circle. */}
-      <mesh geometry={topGeometry} position={[0, 0.2, 0]} receiveShadow>
-        <meshStandardMaterial color={isNight ? '#5f4d5c' : '#d2bba9'} roughness={0.97} />
+      <mesh position={[0, -0.12, 0]} receiveShadow castShadow>
+        <cylinderGeometry args={[8.08, 7.66, 0.58, 64, 1]} />
+        <meshStandardMaterial color={stone[0]} roughness={0.96} />
       </mesh>
 
-      {/* Cliff band that thickens the rim from a low camera angle. */}
-      <mesh geometry={rimGeometry} position={[0, 0.2, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color={isNight ? '#4a3a4a' : '#c3a692'} roughness={0.99} flatShading />
-      </mesh>
-
-      {/* The hanging rock mass — carries the whole silhouette. */}
-      <mesh geometry={bodyGeometry} position={[0, -0.2, 0]} receiveShadow castShadow>
+      <mesh receiveShadow castShadow>
+        <latheGeometry args={[islandProfile, 64]} />
         <meshStandardMaterial
-          color={isNight ? '#4e3f50' : '#c0a290'}
-          roughness={0.99}
-          vertexColors
-          flatShading
+          color={isNight ? '#493b4c' : '#d3b7a1'}
+          roughness={0.98}
           side={DoubleSide}
         />
       </mesh>
 
-      {/* Boulders clamped on the underside so the outline gets real bumps. */}
-      {rockLumps.map((lump, index) => (
-        <mesh
-          key={index}
-          position={[lump.position[0], lump.position[1] - 0.2, lump.position[2]]}
-          rotation={lump.rotation}
-          scale={lump.scale}
-          castShadow
-          receiveShadow
-        >
-          <dodecahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial
-            color={isNight ? nightStone[lump.tone] : ['#b39482', '#a88b7c', '#bd9f8d'][lump.tone]}
-            roughness={1}
-          />
+      <mesh position={[0, -0.43, 0]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
+        <torusGeometry args={[7.62, 0.23, 12, 96]} />
+        <meshStandardMaterial color={isNight ? '#584757' : '#ead8ca'} roughness={0.96} />
+      </mesh>
+
+      {[
+        [6.9, -1.2],
+        [5.62, -2.3],
+      ].map(([radius, y], index) => (
+        <mesh key={radius} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[radius, index === 0 ? 0.075 : 0.06, 8, 96]} />
+          <meshStandardMaterial color={isNight ? '#604d5e' : '#dfc7b6'} roughness={1} />
         </mesh>
       ))}
+
+      <mesh position={[0, 0.13, 0]} receiveShadow>
+        <cylinderGeometry args={[7.82, 7.82, 0.18, 64]} />
+        <meshStandardMaterial color={isNight ? '#655463' : '#fffaf5'} roughness={0.94} />
+      </mesh>
 
       <RoundedBox
         args={[11.55, 0.18, 6.35]}
@@ -953,7 +766,7 @@ export function FloatingIsland({ isNight }: FloatingIslandProps) {
         receiveShadow
         castShadow
       >
-        <meshStandardMaterial color={isNight ? '#6a5665' : '#ead9c8'} roughness={0.88} />
+        <meshStandardMaterial color={isNight ? '#6a5665' : '#fffdf9'} roughness={0.88} />
       </RoundedBox>
 
       {[
@@ -980,7 +793,6 @@ export function FloatingIsland({ isNight }: FloatingIslandProps) {
       <ArrivalPath isNight={isNight} />
       <WelcomeSign isNight={isNight} />
       <MemoryTree isNight={isNight} />
-      <HangingLantern isNight={isNight} />
       <Campfire isNight={isNight} />
 
       <IslandCloud position={[-7.1, -1.2, -1.1]} scale={0.82} isNight={isNight} />
