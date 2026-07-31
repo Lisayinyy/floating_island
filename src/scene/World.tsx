@@ -2,15 +2,109 @@ import { ContactShadows, OrbitControls, Sparkles, Stars } from '@react-three/dre
 import { useFrame, useThree } from '@react-three/fiber'
 import gsap from 'gsap'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Box3, Group, MathUtils, PerspectiveCamera, Raycaster, Vector3 } from 'three'
+import {
+  Box3,
+  Group,
+  MathUtils,
+  MeshBasicMaterial,
+  PerspectiveCamera,
+  Raycaster,
+  Vector3,
+} from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { useWorldStore } from '../store/worldStore'
-import type { Light, Mesh, MeshStandardMaterial, Object3D } from 'three'
+import type { Light, Material, Mesh, MeshStandardMaterial, Object3D } from 'three'
 import type { WorldItemId } from '../store/worldStore'
 import { getWorldObject, measureWorldObject } from './objectRegistry'
 import type { WorldObjectMeasure } from './objectRegistry'
+import { prefersReducedMotion } from './motion'
 import { Room } from './Room'
 import './stats'
+
+/**
+ * Silhouette mode: the reference site's near-black island, on demand.
+ *
+ * Not `scene.overrideMaterial`, even though that is one line and immune to
+ * remounts. It flattens *everything*, and the result was a black blob: the
+ * open-fronted cabin filled in as one solid rectangle and drei's `Sparkles`
+ * became a scatter of black specks around the island.
+ *
+ * So the graph is walked instead, and anything genuinely emitting light keeps its
+ * own material — the campfire, the candle, the lantern flame, and after dark the
+ * window panes and the screens. That turns the mass into the thing the reference
+ * site does best: a dark shape with a few warm points inside it.
+ *
+ * The lights themselves stay mounted. `MeshBasicMaterial` ignores them, so the
+ * flattened meshes are unaffected while the glowing ones still light the scene.
+ */
+const SILHOUETTE_GLOW_THRESHOLD = 0.8
+
+function SilhouetteMode() {
+  const scene = useThree((state) => state.scene)
+  const theme = useWorldStore((state) => state.theme)
+  const silhouette = useWorldStore((state) => state.silhouette)
+
+  useEffect(() => {
+    if (!silhouette) return
+
+    const flat = new MeshBasicMaterial({ color: theme === 'night' ? '#0a0713' : '#2b212a' })
+    const restore = new Map<Mesh, Material | Material[]>()
+
+    scene.traverse((object) => {
+      const mesh = object as Mesh
+      if (!mesh.isMesh || !mesh.material) return
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      const emits = materials.some((entry) => {
+        const standard = entry as MeshStandardMaterial
+        return (
+          (standard.emissiveIntensity ?? 0) >= SILHOUETTE_GLOW_THRESHOLD &&
+          (standard.emissive?.getHex() ?? 0) !== 0
+        )
+      })
+      if (emits) return
+      restore.set(mesh, mesh.material)
+      mesh.material = flat
+    })
+
+    return () => {
+      // Safe to restore blindly: the only thing that swaps these materials from
+      // React is the theme, and the theme is a dependency of this effect.
+      restore.forEach((material, mesh) => {
+        mesh.material = material
+      })
+      flat.dispose()
+    }
+  }, [scene, silhouette, theme])
+
+  return null
+}
+
+/**
+ * Toggle silhouette mode from the keyboard.
+ *
+ * A key rather than a click target: the wordmark is a link to Lisa's portfolio,
+ * so a click-count trigger there would navigate away on the first click, and a
+ * visible button would make it a setting rather than an easter egg. The menu
+ * sheet carries a quiet hint, because an easter egg nobody can find is just
+ * unreachable code.
+ */
+function useSilhouetteShortcut() {
+  const toggleSilhouette = useWorldStore((state) => state.toggleSilhouette)
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 's' && event.key !== 'S') return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      // Never swallow a keystroke someone is typing into a field.
+      if (target?.isContentEditable) return
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+      toggleSilhouette()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [toggleSilhouette])
+}
 
 /**
  * Publish what the renderer actually built, plus a probe that answers "can the
@@ -24,7 +118,9 @@ import './stats'
 function SceneProbes() {
   const scene = useThree((state) => state.scene)
   const camera = useThree((state) => state.camera)
+  const size = useThree((state) => state.size)
   const theme = useWorldStore((state) => state.theme)
+  const silhouette = useWorldStore((state) => state.silhouette)
 
   useEffect(() => {
     const raycaster = new Raycaster()
@@ -113,10 +209,29 @@ function SceneProbes() {
       }
     }
 
+    /**
+     * Where a named object currently is, in CSS pixels.
+     *
+     * So a test can click the campfire or the lantern without hard-coded screen
+     * coordinates. The island floats and the camera is orbitable, so any fixed
+     * pair of numbers is only correct until something moves — the same reason the
+     * chapter framing is measured rather than written down.
+     */
+    window.__ISLAND_AT__ = (name: string) => {
+      const object = scene.getObjectByName(name)
+      if (!object) return null
+      const point = object.getWorldPosition(new Vector3()).project(camera)
+      return {
+        x: Math.round(((point.x + 1) / 2) * size.width),
+        y: Math.round(((1 - point.y) / 2) * size.height),
+      }
+    }
+
     return () => {
       delete window.__ISLAND_PROBE__
+      delete window.__ISLAND_AT__
     }
-  }, [scene, camera])
+  }, [scene, camera, size])
 
   useEffect(() => {
     // A beat, so conditional night-only lights and shadows have mounted.
@@ -151,11 +266,12 @@ function SceneProbes() {
         screens,
         artworks,
         theme,
+        silhouette,
       }
     }, 450)
 
     return () => window.clearTimeout(timer)
-  }, [scene, theme])
+  }, [scene, theme, silhouette])
 
   return null
 }
@@ -289,7 +405,7 @@ function FloatingWorld({
   const pointerCurrent = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduceMotion = prefersReducedMotion()
     const isTouchDevice = window.matchMedia('(hover: none), (pointer: coarse)').matches
 
     if (reduceMotion || isTouchDevice) return
@@ -318,7 +434,7 @@ function FloatingWorld({
     if (!entranceRef.current) return
 
     const group = entranceRef.current
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduceMotion = prefersReducedMotion()
 
     if (reduceMotion) {
       entranceProgress.current.value = 1
@@ -421,7 +537,7 @@ function Controls({
       if (hasPlayedIntro.current) return
       hasPlayedIntro.current = true
 
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const reduceMotion = prefersReducedMotion()
       const isMobile = window.innerWidth < 700
       const home = framingFor(homeFraming, isMobile)
       const intro = framingFor(introFraming, isMobile)
@@ -608,7 +724,12 @@ export function World({
   const [isDragging, setIsDragging] = useState(false)
   const setActiveItem = useWorldStore((state) => state.setActiveItem)
   const theme = useWorldStore((state) => state.theme)
+  const silhouette = useWorldStore((state) => state.silhouette)
   const isNight = theme === 'night'
+  /* Particles have no silhouette: flattened to one dark tone they read as a
+     scatter of specks around the island, so they sit this mode out entirely. */
+  const showParticles = !silhouette
+  useSilhouetteShortcut()
 
   useEffect(
     () => () => {
@@ -669,7 +790,7 @@ export function World({
         distance={18}
         color={isNight ? '#ffc38c' : '#f7d3c4'}
       />
-      {isNight && (
+      {isNight && showParticles && (
         <>
           <Stars radius={68} depth={42} count={3600} factor={3.4} saturation={0.2} speed={0.18} />
           <Sparkles
@@ -693,14 +814,16 @@ export function World({
           color="#ffc27d"
         />
       )}
-      <Sparkles
-        count={isNight ? 72 : 32}
-        scale={[21, 12, 18]}
-        size={isNight ? 2.2 : 1.2}
-        speed={0.18}
-        opacity={isNight ? 0.72 : 0.32}
-        color={isNight ? '#f2d9e6' : '#fff7f3'}
-      />
+      {showParticles && (
+        <Sparkles
+          count={isNight ? 72 : 32}
+          scale={[21, 12, 18]}
+          size={isNight ? 2.2 : 1.2}
+          speed={0.18}
+          opacity={isNight ? 0.72 : 0.32}
+          color={isNight ? '#f2d9e6' : '#fff7f3'}
+        />
+      )}
       <FloatingWorld isDragging={isDragging}>
         <group
           onClick={(event) => {
@@ -709,7 +832,7 @@ export function World({
         >
           <Room />
         </group>
-        {isNight && (
+        {isNight && showParticles && (
           <>
             <Sparkles
               count={38}
@@ -732,15 +855,19 @@ export function World({
           </>
         )}
       </FloatingWorld>
-      <ContactShadows
-        position={[0, 0.54, 0]}
-        opacity={isNight ? 0.42 : 0.26}
-        scale={11}
-        blur={3.2}
-        far={5}
-        resolution={512}
-        color={isNight ? '#0c0910' : '#4b3845'}
-      />
+      {/* A soft plane under the island; against a flat silhouette it only
+          muddies the outline. */}
+      {showParticles && (
+        <ContactShadows
+          position={[0, 0.54, 0]}
+          opacity={isNight ? 0.42 : 0.26}
+          scale={11}
+          blur={3.2}
+          far={5}
+          resolution={512}
+          color={isNight ? '#0c0910' : '#4b3845'}
+        />
+      )}
       <Controls
         resetKey={resetKey}
         introComplete={introComplete}
@@ -748,6 +875,7 @@ export function World({
         onDraggingChange={setIsDragging}
       />
       <SceneProbes />
+      <SilhouetteMode />
     </>
   )
 }

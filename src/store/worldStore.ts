@@ -65,17 +65,28 @@ type WorldState = {
   theme: WorldTheme
   /** True once the visitor picks a theme themselves; stops OS follow-along. */
   themeIsExplicit: boolean
+  /**
+   * Silhouette mode: the reference site's near-black island, as an easter egg.
+   *
+   * Not the default, because plantpot's home page carries no content while this
+   * one has six clickable objects that have to stay findable. Deliberately not
+   * persisted either — it is a thing you do, not a setting you keep, and a
+   * returning visitor should get the island back.
+   */
+  silhouette: boolean
   setActiveItem: (item: WorldItemId | null) => void
   setTheme: (theme: WorldTheme) => void
   /** Applies an OS-level change; ignored after an explicit choice. */
   applySystemTheme: (theme: WorldTheme) => void
   toggleTheme: () => void
+  toggleSilhouette: () => void
 }
 
 export const useWorldStore = create<WorldState>((set, get) => ({
   activeItem: null,
   theme: resolveInitialTheme(),
   themeIsExplicit: readStoredTheme() !== null,
+  silhouette: false,
   setActiveItem: (activeItem) => set({ activeItem }),
   setTheme: (theme) => {
     writeStoredTheme(theme)
@@ -88,6 +99,7 @@ export const useWorldStore = create<WorldState>((set, get) => ({
     set({ theme })
   },
   toggleTheme: () => get().setTheme(get().theme === 'day' ? 'night' : 'day'),
+  toggleSilhouette: () => set({ silhouette: !get().silhouette }),
 }))
 
 /**

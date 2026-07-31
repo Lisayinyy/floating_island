@@ -311,6 +311,101 @@ def run_share_assets(page, url: str) -> None:
     )
 
 
+def region_signature(page, box: dict) -> tuple[int, float]:
+    """Distinct colour buckets and mean luma inside a screen rectangle."""
+    path = OUT / "_scratch.png"
+    page.screenshot(path=str(path), clip=box)
+    image = Image.open(path).convert("RGB")
+    pixels = list(image.getdata())
+    lumas = [0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in pixels]
+    buckets = {(r // 20, g // 20, b // 20) for r, g, b in pixels}
+    return len(buckets), sum(lumas) / len(lumas)
+
+
+def run_easter_eggs(page, device: str) -> None:
+    """The three things on the island that answer back.
+
+    Every one of these is invisible to a static screenshot of the home view, and
+    two of them are the only interactions on the island that are not chapters, so
+    nothing else in this suite would notice if they stopped responding.
+    """
+    island = {"x": 380, "y": 150, "width": 700, "height": 640}
+
+    # --- silhouette mode (press S) -------------------------------------------
+    before_buckets, _ = region_signature(page, island)
+    page.keyboard.press("s")
+    page.wait_for_timeout(1400)
+    stats = page.evaluate("window.__ISLAND_STATS__ ?? null")
+    check(
+        f"{device}: pressing S enters silhouette mode",
+        bool(stats) and stats.get("silhouette") is True,
+        json.dumps(stats),
+    )
+    flat_buckets, _ = region_signature(page, island)
+    # A silhouette is by definition fewer tones: if the flatten silently stopped
+    # working the flag would still flip, so the pixels have to be checked too.
+    check(
+        f"{device}: silhouette collapses the island's tones",
+        flat_buckets < before_buckets * 0.6,
+        f"{before_buckets} buckets normally vs {flat_buckets} flattened",
+    )
+
+    page.keyboard.press("s")
+    page.wait_for_timeout(1400)
+    restored_buckets, _ = region_signature(page, island)
+    check(
+        f"{device}: pressing S again restores the island",
+        restored_buckets > flat_buckets * 1.5,
+        f"{flat_buckets} flattened vs {restored_buckets} restored",
+    )
+
+    # --- campfire poke -------------------------------------------------------
+    fire = page.evaluate("window.__ISLAND_AT__?.('campfire') ?? null")
+    if not fire:
+        check(f"{device}: campfire is reachable", False, "no campfire in the graph")
+    else:
+        box = {"x": fire["x"] - 70, "y": fire["y"] - 90, "width": 140, "height": 140}
+        _, calm = region_signature(page, box)
+        page.mouse.click(fire["x"], fire["y"])
+        page.wait_for_timeout(140)
+        _, poked = region_signature(page, box)
+        check(
+            f"{device}: poking the campfire flares it up",
+            poked > calm + 1.5,
+            f"mean luma {calm:.1f} calm vs {poked:.1f} poked",
+        )
+        page.wait_for_timeout(1600)
+
+    # --- lantern snuff -------------------------------------------------------
+    lantern = page.evaluate("window.__ISLAND_AT__?.('lantern-cage') ?? null")
+    if not lantern:
+        check(f"{device}: lantern is reachable", False, "no lantern in the graph")
+    else:
+        box = {
+            "x": lantern["x"] - 40,
+            "y": lantern["y"] - 30,
+            "width": 80,
+            "height": 70,
+        }
+        _, lit = region_signature(page, box)
+        page.mouse.click(lantern["x"], lantern["y"])
+        page.wait_for_timeout(1200)
+        _, snuffed = region_signature(page, box)
+        check(
+            f"{device}: the lantern can be blown out",
+            snuffed < lit - 4,
+            f"mean luma {lit:.1f} lit vs {snuffed:.1f} snuffed",
+        )
+        page.mouse.click(lantern["x"], lantern["y"])
+        page.wait_for_timeout(1200)
+        _, relit = region_signature(page, box)
+        check(
+            f"{device}: the lantern can be lit again",
+            relit > snuffed + 4,
+            f"mean luma {snuffed:.1f} snuffed vs {relit:.1f} relit",
+        )
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     httpd = socketserver.TCPServer(("127.0.0.1", PORT), Handler)
@@ -362,6 +457,17 @@ def main() -> None:
                 check(f"{device}: menu sheet opens", float(visible) > 0.9, f"opacity {visible}")
                 links = page.eval_on_selector_all(".menu-links button", "els => els.length")
                 check(f"{device}: menu lists every chapter", links == 7, f"{links} entries")
+                # The sheet's order and the panel numbering used to be two
+                # independent lists, and they disagreed: 00, 02, 06, 05, 01, 03,
+                # 04 down the page made the numbers read as decoration.
+                numbers = page.eval_on_selector_all(
+                    ".menu-links button i", "els => els.map((e) => e.textContent.trim())"
+                )
+                check(
+                    f"{device}: menu runs in chapter order",
+                    numbers == sorted(numbers),
+                    " ".join(numbers),
+                )
                 page.screenshot(path=str(OUT / f"{device}-menu.png"))
 
                 page.click(".menu-links li:nth-child(2) button")
@@ -376,6 +482,7 @@ def main() -> None:
                 run_focus(page, device)
                 if device == "desktop":
                     run_share_assets(page, url)
+                    run_easter_eggs(page, device)
 
                 # Leave the island in night mode, then confirm a fresh visit in
                 # the same browser profile still opens at night.

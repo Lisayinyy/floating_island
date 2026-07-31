@@ -101,7 +101,17 @@ const panels: Record<
   },
 }
 
-const itemOrder: WorldItemId[] = ['about', 'art', 'work', 'philosophy', 'experience', 'toolkit']
+/**
+ * Menu order, derived from the chapter numbers rather than listed separately.
+ *
+ * These were two independent lists, and they disagreed: the sheet ran 02, 06,
+ * 05, 01, 03, 04 down the page, so the numbers beside the handwritten links read
+ * as noise. The numbers are what a visitor also sees at the top of every chapter
+ * panel, so they are the canonical order and the sheet follows them.
+ */
+const itemOrder: WorldItemId[] = (Object.keys(panels) as WorldItemId[]).sort((a, b) =>
+  panels[a].index.localeCompare(panels[b].index),
+)
 
 const menuLabels: Record<WorldItemId, string> = {
   about: 'About Lisa',
@@ -272,6 +282,11 @@ export function Overlay({
               </li>
             ))}
           </ul>
+          {/* Quiet enough to stay an easter egg, present enough to be findable.
+              Hidden on touch, where there is no key to press. */}
+          <p className="menu-hint">
+            press <kbd>S</kbd> for silhouette
+          </p>
           <div className="menu-socials">
             <a
               href="https://lisayinyy.github.io/personal_web/"

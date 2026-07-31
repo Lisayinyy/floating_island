@@ -39,6 +39,14 @@ Live: <https://lisayinyy.github.io/floating_island/>
   the desk is a working moodboard. All six are Canvas2D textures for the same
   reason as the screens: a circle and two bars stood in for a painting, and the
   chapter close-up showed it.
+- **Things that reward poking.** The campfire flares when you click it, the
+  hanging lantern can be snuffed out and relit, and the tree leans away from your
+  pointer on top of its own idle wind. None of it is announced, none of it is a
+  setting, and all of it goes still under `prefers-reduced-motion`.
+- **A silhouette hidden behind one key.** Pressing `S` flattens the whole island
+  to a single dark tone while every flame, candle, lit window and screen keeps
+  burning — the reference site's silhouette, borrowed as an easter egg instead of
+  a default. It is never saved, because it is a thing you do, not a mode you keep.
 - **Framing is measured, never hand-written.** Chapter cameras are derived from a
   live bounding-sphere measurement of the object plus a frame-relative target
   (`fill`, `ndcX`, `ndcY`), and floating labels sit at the measured top of each
@@ -64,11 +72,15 @@ by Akira Haga, adapted to a site that has to keep interactive content readable:
 | Custom loading screen | Two counter-rotating dotted rings with a mono caption, painted from a ~17 kB entry chunk so it appears before three.js has downloaded |
 | A single warm window in a dark mass | The right end wall is framed timber around two real openings (`WindowWall`); after dark the panes are the island's brightest note |
 | Theme follows the system, then the visitor | `resolveInitialTheme()` reads `localStorage` first and `prefers-color-scheme` second; an inline script in `index.html` applies it before React mounts, so night visitors never see a white flash |
+| A near-black island silhouette | Available on demand: `S` swaps every material for one flat dark tone, skipping anything genuinely emissive, so the mass reads as a shape with a few warm points inside it |
 
 Where it deliberately differs: plantpot's island is a near-black silhouette,
 which works because its home page carries no content. This island has six
-clickable objects, so the interior stays lit and legible while the exterior mass
-carries the silhouette.
+clickable objects, so the default view keeps the interior lit and legible while
+the exterior mass carries the silhouette — and the full silhouette lives behind
+the `S` key for anyone who wants it. Flattening the scene with a single
+`scene.overrideMaterial` was tried first and rejected: it turned the open-fronted
+cabin into one solid black rectangle and the sparkles into black specks.
 
 ## Performance notes
 
@@ -115,12 +127,23 @@ with software WebGL and checks the failures that have actually happened here:
   laptop pane or a missing window light fails a check rather than a screenshot
   review.
 - theme persistence, a dark OS preference, and keyboard-only chapter access
+- **the hidden things still being there.** The silhouette key, the campfire poke
+  and the lantern toggle are each asserted by sampling the colour spread and mean
+  brightness of a region before and after — silhouette has to collapse the tone
+  count (235 → 56 distinct buckets), poking the fire has to make its corner
+  brighter, and snuffing the lantern has to make its corner darker. Clicks are
+  aimed with `window.__ISLAND_AT__(name)`, which projects a named object to CSS
+  pixels, because the island floats and any hard-coded coordinate is only correct
+  until something moves.
+- **lists that agree with each other.** The menu sheet has to read `00`–`06` in
+  order. It ran `00 02 06 05 01 03 04` for three rounds, because the order was a
+  second hand-written list that had drifted from the chapter numbers.
 - **the link's own presentation.** The favicon resolving under the project
   subpath, and a `summary_large_image` card at the right dimensions. Both fail
   silently and neither appears in any screenshot of the page — the favicon
   shipped for a while was a scaffold's purple lightning bolt.
 
-106 checks at the time of writing, across desktop and phone, day and night.
+114 checks at the time of writing, across desktop and phone, day and night.
 
 ```bash
 npm run build
@@ -148,9 +171,10 @@ src/
 │   ├── islandGeometry.ts      Deterministic island geometry generators
 │   ├── screenTexture.ts       Canvas2D screens and painted artwork
 │   ├── objectRegistry.ts      Chapter id → group, plus live object measurement
+│   ├── motion.ts              One place that reads prefers-reduced-motion
 │   ├── stats.ts               Types for the window debug hooks
 │   └── InteractiveObject.tsx  Hover, keyboard access and floating labels
-├── store/worldStore.ts        Active chapter, theme resolution and persistence
+├── store/worldStore.ts        Active chapter, theme resolution, silhouette toggle
 └── App.css                    Sky gradients, dust, menu sheet, panels, loader
 qa/
 ├── verify.py                  Headless WebGL regression pass

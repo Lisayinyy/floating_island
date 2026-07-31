@@ -1,6 +1,6 @@
 import { RoundedBox } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BufferGeometry,
   CanvasTexture,
@@ -9,6 +9,7 @@ import {
   Float32BufferAttribute,
   Group,
   InstancedMesh,
+  MathUtils,
   PointLight,
   Object3D,
   SRGBColorSpace,
@@ -20,6 +21,8 @@ import {
   createIslandTopGeometry,
   createRockLumps,
 } from './islandGeometry'
+import { prefersReducedMotion } from './motion'
+import type { ThreeEvent } from '@react-three/fiber'
 
 type FloatingIslandProps = {
   isNight: boolean
@@ -443,11 +446,18 @@ function IslandPlant({
   )
 }
 
+/** Idle lean of the tree, in radians. Small on purpose: the crown is ~4 units
+ *  up, so even this is several centimetres of travel at the tip. */
+const TREE_SWAY = 0.019
+const TREE_BASE_YAW = -0.08
+
 function MemoryTree({ isNight }: FloatingIslandProps) {
   const trunk = isNight ? '#745b68' : '#c9b9b1'
   const leaves = isNight ? nightTreeLeaves : dayTreeLeaves
   const leafGeometry = useMemo(() => createAlmondLeafGeometry(), [])
   const leafInstances = useMemo(() => createLeafInstances(), [])
+  const groupRef = useRef<Group>(null)
+  const leanRef = useRef(0)
   const leavesByColor = useMemo(
     () => [0, 1, 2].map((colorIndex) =>
       leafInstances.filter((leaf) => leaf.colorIndex === colorIndex),
@@ -455,10 +465,42 @@ function MemoryTree({ isNight }: FloatingIslandProps) {
     [leafInstances],
   )
 
+  /**
+   * Wind, applied by rotating the whole tree rather than the 500-odd leaf
+   * instances. The group's origin sits at the trunk base, so rotating it pivots
+   * exactly where a tree bends — the roots stay planted and the crown swings.
+   * Re-writing every instance matrix each frame would look marginally better and
+   * cost far more.
+   *
+   * The pointer adds a lean on top, so moving the cursor across the scene pushes
+   * the crown. At rest the pointer reads (0, 0), which keeps headless
+   * screenshots byte-comparable between builds.
+   */
+  useFrame((state, delta) => {
+    const group = groupRef.current
+    if (!group) return
+    if (prefersReducedMotion()) {
+      group.rotation.set(0, TREE_BASE_YAW, 0)
+      return
+    }
+    const elapsed = state.clock.elapsedTime
+    const gust = 0.65 + 0.35 * Math.sin(elapsed * 0.23)
+    leanRef.current = MathUtils.damp(leanRef.current, state.pointer.x, 2.6, delta)
+
+    group.rotation.z =
+      (Math.sin(elapsed * 0.62) * 0.7 + Math.sin(elapsed * 1.43 + 1.1) * 0.3) * TREE_SWAY * gust -
+      leanRef.current * TREE_SWAY * 1.5
+    group.rotation.x =
+      Math.sin(elapsed * 0.51 + 0.6) * TREE_SWAY * 0.5 * gust +
+      MathUtils.damp(0, state.pointer.y, 1, delta) * TREE_SWAY
+    group.rotation.y = TREE_BASE_YAW + Math.sin(elapsed * 0.37) * TREE_SWAY * 0.4
+  })
+
   return (
     <group
+      ref={groupRef}
       position={[4.78, 0.1, -2.92]}
-      rotation={[0, -0.08, 0]}
+      rotation={[0, TREE_BASE_YAW, 0]}
       scale={[0.95, 1.04, 0.95]}
     >
       {treeBranches.map((branch, index) => (
@@ -605,22 +647,59 @@ function ArrivalPath({ isNight }: FloatingIslandProps) {
   )
 }
 
+/**
+ * Shared bookkeeping for the island's small pokeable details.
+ *
+ * Returns a decaying 1 → 0 envelope since the last poke, plus the handlers that
+ * make the thing feel clickable. Time comes from `performance.now()` rather than
+ * the render clock so a click handler can stamp it without needing a frame.
+ */
+function usePoke(duration = 1.15) {
+  const pokedAt = useRef(-Infinity)
+
+  const poke = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation()
+    pokedAt.current = performance.now()
+  }
+
+  const hover = (event: ThreeEvent<PointerEvent>, isHovered: boolean) => {
+    event.stopPropagation()
+    document.body.classList.toggle('is-interacting', isHovered)
+  }
+
+  const energy = () => {
+    const age = (performance.now() - pokedAt.current) / 1000
+    if (age < 0 || age > duration) return 0
+    const remaining = 1 - age / duration
+    return remaining * remaining
+  }
+
+  return { poke, hover, energy }
+}
+
 function Campfire({ isNight }: FloatingIslandProps) {
   const flameRef = useRef<Group>(null)
   const glowRef = useRef<PointLight>(null)
   const emberRef = useRef<Group>(null)
+  const { poke, hover, energy } = usePoke()
+  // Rendered state, so the daylight embers can mount only while they matter.
+  const [stoked, setStoked] = useState(false)
 
   useFrame((state) => {
     const elapsed = state.clock.elapsedTime
+    const boost = energy()
+    if (boost > 0.02 !== stoked) setStoked(boost > 0.02)
     const flicker =
       Math.sin(elapsed * 8.2) * 0.06 +
-      Math.sin(elapsed * 13.7 + 0.8) * 0.035
+      Math.sin(elapsed * 13.7 + 0.8) * 0.035 +
+      // A poked fire flares and crackles harder, not just bigger.
+      Math.sin(elapsed * 26) * boost * 0.12
 
     if (flameRef.current) {
       flameRef.current.scale.set(
-        1 - flicker * 0.35,
-        1 + flicker,
-        1 - flicker * 0.25,
+        (1 - flicker * 0.35) * (1 + boost * 0.3),
+        (1 + flicker) * (1 + boost * 0.62),
+        (1 - flicker * 0.25) * (1 + boost * 0.3),
       )
       flameRef.current.rotation.z = Math.sin(elapsed * 4.6) * 0.035
     }
@@ -630,19 +709,30 @@ function Campfire({ isNight }: FloatingIslandProps) {
       // keeps the pastel day scene from flattening out.
       const base = isNight ? 24 : 10
       glowRef.current.intensity =
-        base +
-        Math.sin(elapsed * 9.1) * base * 0.13 +
-        Math.sin(elapsed * 15.4 + 0.5) * base * 0.07
+        (base +
+          Math.sin(elapsed * 9.1) * base * 0.13 +
+          Math.sin(elapsed * 15.4 + 0.5) * base * 0.07) *
+        (1 + boost * 1.5)
     }
 
     if (emberRef.current) {
-      emberRef.current.position.y = 0.06 + ((elapsed * 0.18) % 0.28)
+      // Poked embers climb further and faster before looping.
+      const climb = 0.28 * (1 + boost * 3.4)
+      emberRef.current.position.y = 0.06 + ((elapsed * (0.18 + boost * 0.9)) % climb)
       emberRef.current.rotation.y = elapsed * 0.45
+      emberRef.current.scale.setScalar(1 + boost * 0.85)
     }
   })
 
   return (
-    <group position={[3.18, 0.4, 4.2]} scale={0.78}>
+    <group
+      name="campfire"
+      position={[3.18, 0.4, 4.2]}
+      scale={0.78}
+      onClick={poke}
+      onPointerOver={(event) => hover(event, true)}
+      onPointerOut={(event) => hover(event, false)}
+    >
       {[0, Math.PI / 2, Math.PI / 4].map((rotation, index) => (
         <mesh
           key={rotation}
@@ -688,7 +778,7 @@ function Campfire({ isNight }: FloatingIslandProps) {
         </mesh>
       </group>
 
-      <group ref={emberRef} visible={isNight}>
+      <group ref={emberRef} visible={isNight || stoked}>
         {[
           [-0.27, 1.2, 0.03, 0.035],
           [0.18, 1.42, -0.08, 0.045],
@@ -716,9 +806,21 @@ function Campfire({ isNight }: FloatingIslandProps) {
 function HangingLantern({ isNight }: FloatingIslandProps) {
   const flameRef = useRef<PointLight>(null)
   const bodyColor = isNight ? '#3c2f3c' : '#6d5762'
+  // Snuffing the lantern is the one destructive-looking interaction on the
+  // island, so it is fully reversible and never persisted: reload and it is lit.
+  const [lit, setLit] = useState(true)
+  const litRef = useRef(true)
+  litRef.current = lit
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!flameRef.current) return
+    if (!litRef.current) {
+      // Damped rather than cut, so blowing it out reads as a flame dying.
+      // `delta` from useFrame, never `clock.getDelta()`: that resets the shared
+      // clock and would break `elapsedTime` for every other animation.
+      flameRef.current.intensity = MathUtils.damp(flameRef.current.intensity, 0, 6, delta)
+      return
+    }
     const elapsed = state.clock.elapsedTime
     const base = isNight ? 11 : 3.4
     flameRef.current.intensity =
@@ -742,7 +844,22 @@ function HangingLantern({ isNight }: FloatingIslandProps) {
       </mesh>
 
       {/* Lantern cage. */}
-      <group position={[0.86, 2.44, 0]}>
+      <group
+        name="lantern-cage"
+        position={[0.86, 2.44, 0]}
+        onClick={(event) => {
+          event.stopPropagation()
+          setLit((current) => !current)
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          document.body.classList.add('is-interacting')
+        }}
+        onPointerOut={(event) => {
+          event.stopPropagation()
+          document.body.classList.remove('is-interacting')
+        }}
+      >
         <mesh position={[0, 0.29, 0]} castShadow>
           <coneGeometry args={[0.29, 0.22, 4]} />
           <meshStandardMaterial color={bodyColor} roughness={0.85} />
@@ -750,9 +867,9 @@ function HangingLantern({ isNight }: FloatingIslandProps) {
         <mesh castShadow>
           <boxGeometry args={[0.34, 0.42, 0.34]} />
           <meshStandardMaterial
-            color={isNight ? '#ffe0a8' : '#f6e3cd'}
+            color={lit ? (isNight ? '#ffe0a8' : '#f6e3cd') : isNight ? '#2b2430' : '#8d7c81'}
             emissive="#ffb163"
-            emissiveIntensity={isNight ? 2.6 : 0.85}
+            emissiveIntensity={lit ? (isNight ? 2.6 : 0.85) : 0}
             roughness={0.4}
             transparent
             opacity={0.94}

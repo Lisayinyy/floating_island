@@ -19,6 +19,8 @@ export type IslandStats = {
   artworks: number
   /** The theme these numbers were measured under. */
   theme: 'day' | 'night'
+  /** Whether silhouette mode was flattening the scene when measured. */
+  silhouette: boolean
 }
 
 export type FocusProbe = {
@@ -47,5 +49,10 @@ declare global {
     __ISLAND_PROBE__?: (
       id: 'philosophy' | 'about' | 'experience' | 'toolkit' | 'work' | 'art',
     ) => FocusProbe | null
+    /**
+     * Screen position of a named scene object, in CSS pixels, or null when it is
+     * not in the graph. Lets a test click a detail without hard-coded pixels.
+     */
+    __ISLAND_AT__?: (name: string) => { x: number; y: number } | null
   }
 }
