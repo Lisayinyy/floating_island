@@ -67,6 +67,23 @@ MIN_LABEL_HEIGHT = 16
 # both given a hit area the lowest score in the scene is the easel at 0.70.
 MIN_OBJECT_CORE = 0.6
 
+# What a frame is allowed to cost, in numbers that mean the same thing on every
+# machine. Frame rate here does not: under software rasterisation it measures the
+# harness, and the same build reads 157ms and 768ms depending on what else is
+# running.
+#
+# The night theme used to spend 8 full-scene shadow passes, 704 draw calls and
+# 518k drawn triangles a frame, against day's 2 / 456 / 227k — because one word,
+# `castShadow` on a point light, renders the whole scene once per cube face. Six
+# passes for one lamp. Splitting it into an unshadowed point light for the glow
+# and one downward spot for the shadow brought night to 3 / 519 / 275k with no
+# visible difference. These ceilings sit just above the measured numbers so that
+# adding another shadow-casting light, or a point light with a shadow, fails here
+# rather than on someone's phone.
+MAX_SHADOW_PASSES = 4
+MAX_DRAW_CALLS = 620
+MAX_DRAWN_TRIANGLES = 340000
+
 # Opening a chapter has to show the object it is about. Camera framing is
 # derived arithmetic, and arithmetic that reads correctly still parked the AI
 # console behind the cabin's end wall — every chapter view was a wall of timber.
@@ -271,6 +288,24 @@ def run_theme(page, label: str, viewport_width: int) -> dict | None:
             f"{label}: artwork painted",
             stats.get("artworks") == EXPECTED_ARTWORKS,
             f"{stats.get('artworks')} canvas-textured artworks",
+        )
+        # What the frame costs, asserted in hardware-independent units. A point
+        # light with a shadow is six full-scene passes and looks like one line of
+        # JSX; nothing else here would notice it.
+        check(
+            f"{label}: shadow passes stay affordable",
+            (stats.get("shadowPasses") or 0) <= MAX_SHADOW_PASSES,
+            f"{stats.get('shadowPasses')} weighted passes (a point light counts 6)",
+        )
+        check(
+            f"{label}: draw calls stay affordable",
+            (stats.get("drawCalls") or 0) <= MAX_DRAW_CALLS,
+            f"{stats.get('drawCalls')} draw calls, {stats.get('drawnTriangles')} triangles drawn",
+        )
+        check(
+            f"{label}: drawn triangles stay affordable",
+            (stats.get("drawnTriangles") or 0) <= MAX_DRAWN_TRIANGLES,
+            f"{stats.get('drawnTriangles')} triangles drawn against {stats.get('triangles')} in the scene",
         )
     return stats
 

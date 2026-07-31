@@ -21,6 +21,30 @@ export type IslandStats = {
   theme: 'day' | 'night'
   /** Whether silhouette mode was flattening the scene when measured. */
   silhouette: boolean
+  /**
+   * Draw calls in the last rendered frame.
+   *
+   * The counts above describe what is in the scene; this describes what it costs
+   * to show it, which is a different number once shadow maps, a contact-shadow
+   * pass and four particle systems are involved. It is also the honest thing to
+   * assert: the frame rate a harness measures under software rasterisation is a
+   * fact about the harness, while a draw call is the same number everywhere.
+   */
+  drawCalls: number
+  /** Triangles actually submitted last frame, shadow and helper passes included. */
+  drawnTriangles: number
+  /** Compiled shader programs; each one is a compile stall the first time it runs. */
+  programs: number
+  /** Live GPU textures and geometries, as the renderer counts them. */
+  textures: number
+  geometries: number
+  /**
+   * Extra full-scene passes the shadow maps cost, weighted by kind: a directional
+   * or spot light is one, a point light is six — one per cube face. A single
+   * `castShadow` prop is the cheapest way to make a scene several times more
+   * expensive, and it changes no other number here.
+   */
+  shadowPasses: number
 }
 
 export type FocusProbe = {

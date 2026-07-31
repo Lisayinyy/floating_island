@@ -92,6 +92,18 @@ Live: <https://lisayinyy.github.io/floating_island/>
   it cannot leave, and the `about` close-up puts it flat against the cabin's
   brown back wall.
 
+- **The lamp lights the room; a spot does the shadow.** The night theme's desk
+  lamp used to be one shadow-casting point light, which is the most expensive
+  single prop in the scene: a point light renders the whole scene once per cube
+  face, so that one word took night from 2 shadow passes to 8, 456 draw calls to
+  704, and 227k drawn triangles a frame to 518k. Deleting the shadow was tried
+  first and the room went flat — the chair and the sketchbook stopped touching
+  the floor. So the light keeps its glow on the walls and stops casting, and a
+  single downward spot does the shadow for one pass: 3 / 519 / 275k, and the two
+  night screenshots are hard to tell apart. The key light overhead still casts,
+  and was deliberately left alone — the same test showed its shadow doing visible
+  work, and 456 draw calls in daylight was never the problem.
+
 ## Design language
 
 The visual direction is a study of [plantpot.studio](https://www.plantpot.studio)
@@ -265,6 +277,15 @@ with software WebGL and checks the failures that have actually happened here:
   mesh, triangle, light, painted-screen and painted-artwork counts, so a blank
   laptop pane or a missing window light fails a check rather than a screenshot
   review.
+- **what a frame costs, in units that mean the same thing on every machine.** The
+  same stats object reports draw calls, triangles actually drawn, and shadow
+  passes weighted by kind — a directional or spot light is one extra full-scene
+  pass, a point light is six, one per cube face. Frame rate is deliberately not
+  asserted: under software rasterisation it measures the harness, and the same
+  build reads 157ms and 768ms depending on what else the machine is doing. The
+  ceilings are 4 passes, 620 draw calls and 340k drawn triangles, which sit just
+  above the real numbers; putting `castShadow` back on the lamp takes it to 9 /
+  777 / 574k and all three go red.
 - theme persistence, a dark OS preference, and keyboard-only chapter access
 - **anything arriving from a third party.** Every byte has to come from this
   page's own origin; an `@import` that reintroduces a font CDN is one line long
@@ -284,7 +305,7 @@ with software WebGL and checks the failures that have actually happened here:
   silently and neither appears in any screenshot of the page — the favicon
   shipped for a while was a scaffold's purple lightning bolt.
 
-180 checks at the time of writing, across desktop and phone, day and night, plus
+192 checks at the time of writing, across desktop and phone, day and night, plus
 a reduced-motion pass and two real-pointer passes (mouse and touch). The camera checks wait for the tween to settle rather than
 sleeping a fixed 4.2s — under software WebGL a 1.05s tween can take several
 wall-clock seconds, and a mid-flight probe once reported the easel covering 117%

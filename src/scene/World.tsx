@@ -123,6 +123,7 @@ function SceneProbes() {
   const scene = useThree((state) => state.scene)
   const camera = useThree((state) => state.camera)
   const size = useThree((state) => state.size)
+  const gl = useThree((state) => state.gl)
   const theme = useWorldStore((state) => state.theme)
   const silhouette = useWorldStore((state) => state.silhouette)
 
@@ -339,9 +340,23 @@ function SceneProbes() {
       let lights = 0
       let screens = 0
       let artworks = 0
+      let shadowCasters = 0
 
       scene.traverse((object) => {
-        if ((object as Light).isLight) lights += 1
+        if ((object as Light).isLight) {
+          lights += 1
+          /*
+           * Shadow-casting lights are the expensive kind, and they are not
+           * expensive equally: a directional or spot light renders the scene once
+           * more per frame, and a point light renders it *six* times, once per
+           * cube face. Counted here because it is the one cost that can grow by a
+           * single prop nobody reads twice, and it does not show up in a mesh or
+           * triangle count at all.
+           */
+          if ((object as Light).castShadow) {
+            shadowCasters += (object as Light).type === 'PointLight' ? 6 : 1
+          }
+        }
         const mesh = object as Mesh
         if (!mesh.isMesh || !mesh.geometry) return
         meshes += 1
@@ -365,11 +380,28 @@ function SceneProbes() {
         artworks,
         theme,
         silhouette,
+        /*
+         * What the last frame actually cost, straight from the renderer.
+         *
+         * Mesh and triangle counts say what is *in* the scene; these say what is
+         * being *drawn*, which is a different number entirely once shadow maps,
+         * a contact-shadow pass and four particle systems are in play. Reported
+         * because a perf regression here is invisible in a screenshot and the
+         * frame rate a harness measures under software rasterisation is a fact
+         * about the harness, not the site — draw calls are the same number on
+         * every machine.
+         */
+        drawCalls: gl.info.render.calls,
+        drawnTriangles: gl.info.render.triangles,
+        programs: gl.info.programs?.length ?? 0,
+        textures: gl.info.memory.textures,
+        geometries: gl.info.memory.geometries,
+        shadowPasses: shadowCasters,
       }
     }, 450)
 
     return () => window.clearTimeout(timer)
-  }, [scene, theme, silhouette])
+  }, [scene, gl, theme, silhouette])
 
   return null
 }
@@ -1013,15 +1045,46 @@ export function World({
           />
         </>
       )}
+      {/*
+          The lamp above the desk, split into the part that lights the room and
+          the part that grounds the furniture.
+
+          It used to be one shadow-casting point light, which is the single most
+          expensive prop in the scene: a point light renders the whole scene once
+          per cube face, so that one word cost six extra full-scene passes and
+          took the night theme from 2 shadow passes to 8, 456 draw calls to 704,
+          and 227k drawn triangles a frame to 518k — 1.8x the frame time on the
+          same machine, for one lamp.
+
+          Removing the shadow outright was tried first and the room went flat:
+          the chair and the sketchbook stopped touching the floor. So the light
+          keeps its omnidirectional glow on the walls and ceiling and stops
+          casting, and a single downward spot does the shadow for one pass. Same
+          two jobs, a sixth of the cost.
+      */}
       {isNight && (
-        <pointLight
-          castShadow
-          position={[-1.1, 3.2, -0.75]}
-          intensity={18}
-          distance={7}
-          decay={2}
-          color="#ffc27d"
-        />
+        <>
+          <pointLight
+            position={[-1.1, 3.2, -0.75]}
+            intensity={17}
+            distance={7}
+            decay={2}
+            color="#ffc27d"
+          />
+          <spotLight
+            castShadow
+            position={[-1.1, 3.3, -0.75]}
+            angle={1.02}
+            penumbra={0.92}
+            intensity={9}
+            distance={7.5}
+            decay={2}
+            color="#ffc27d"
+            shadow-mapSize={[1024, 1024]}
+            shadow-camera-near={0.4}
+            shadow-camera-far={8}
+          />
+        </>
       )}
       {showParticles && (
         <Sparkles
