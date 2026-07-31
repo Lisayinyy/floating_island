@@ -759,6 +759,28 @@ function Controls({
       if (landings === 0) window.__ISLAND_FLIGHT__ = { flying: false, count: flightCount }
     }
 
+    /*
+     * A visitor who asked for reduced motion gets a cut, not a dolly.
+     *
+     * The intro and the idle float already respected the setting; the chapter
+     * moves did not, so the one interaction the whole site is built around still
+     * swung the camera through a one-second arc at anyone who had asked it not
+     * to.
+     *
+     * The cut is written straight to the camera rather than tweened with
+     * `duration: 0`. A zero-duration tween does not run `onUpdate`, so nothing
+     * called `controls.update()` and OrbitControls' own damping pulled the camera
+     * partway back toward where its internal spherical state still thought it
+     * was: the easel landed 350px right of where the framing had put it.
+     */
+    if (prefersReducedMotion()) {
+      camera.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2])
+      controls.target.set(targetPosition[0], targetPosition[1], targetPosition[2])
+      controls.update()
+      window.__ISLAND_FLIGHT__ = { flying: false, count: flightCount }
+      return
+    }
+
     const cameraTween = gsap.to(camera.position, {
       x: cameraPosition[0],
       y: cameraPosition[1],

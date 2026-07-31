@@ -112,7 +112,12 @@ body.is-interacting .app-shell canvas { cursor: pointer; }
 .identity-mark { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid rgba(52, 40, 47, 0.6); border-radius: 50%; background: var(--paper); color: var(--ink); font-family: "Shadows Into Light Two", "Instrument Serif", Georgia, serif; font-size: 25px; text-decoration: none; backdrop-filter: blur(12px); transition: transform 200ms ease; }
 .identity-mark:hover { transform: translateY(-2px) rotate(-4deg); }
 .is-night .identity-mark { border-color: rgba(247, 239, 233, 0.42); }
-.identity > span:last-child { display: grid; gap: 3px; }
+/* The wordmark sits on its own frosted backing, like the round buttons opposite
+   it. On the home view it never needed one — the sky behind it is pale in both
+   themes — but a chapter close-up puts whatever the camera is looking at behind
+   the topbar, and against the cabin's brown back wall ink-on-scene text was
+   effectively invisible. */
+.identity > span:last-child { display: grid; gap: 3px; padding: 6px 12px 7px; border: 1px solid var(--line); border-radius: 13px; background: var(--sheet); backdrop-filter: blur(12px); }
 .identity b, .identity small, .scene-index, .scene-intro p, .panel-index, .panel-eyebrow, .panel-meta, .panel-footnote, .object-label, .loading-screen p { font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; letter-spacing: 0.07em; }
 .identity b { font-size: 10px; font-weight: 600; }
 .identity small { color: rgba(52, 40, 47, 0.57); font-size: 8px; }
@@ -154,6 +159,13 @@ body.is-interacting .app-shell canvas { cursor: pointer; }
 .scene-index { position: absolute; bottom: 24px; left: 28px; display: flex; align-items: center; gap: 10px; color: rgba(52, 40, 47, 0.53); font-size: 8px; }
 .scene-index i { width: 34px; height: 1px; background: currentColor; }
 .scene-signature { position: absolute; bottom: 20px; left: 50%; color: var(--ink); font-family: "Shadows Into Light Two", cursive; font-size: 16px; letter-spacing: 0.05em; opacity: 0.6; transform: translateX(-50%); white-space: nowrap; }
+/* The serial number and the signature are home-view furniture. A chapter puts
+   the cabin's interior behind them, where low-contrast 8px type over a dark floor
+   is unreadable — and a plate or a halo to rescue it only adds clutter to a view
+   that is already carrying a panel. They have nothing to say during a chapter, so
+   they leave. The reset-camera button stays: it still does something. */
+.overlay:has(.content-panel) .scene-index,
+.overlay:has(.content-panel) .scene-signature { display: none; }
 .toolbar { position: absolute; right: 28px; bottom: 24px; pointer-events: auto; }
 /* The label doubles as the keyboard entry point for its 3D object, so it is
    always in the DOM and only fades in while hovered, focused or open. */
@@ -226,9 +238,7 @@ body.is-interacting .app-shell canvas { cursor: pointer; }
   .scene-index { display: none; }
   .scene-signature { bottom: 16px; font-size: 14px; }
   .toolbar { right: 17px; bottom: 15px; }
-  .overlay:has(.content-panel) .toolbar,
-  .overlay:has(.content-panel) .scene-index,
-  .overlay:has(.content-panel) .scene-signature { display: none; }
+  .overlay:has(.content-panel) .toolbar { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

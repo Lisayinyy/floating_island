@@ -21,6 +21,7 @@ import json
 import socketserver
 import sys
 import threading
+import time
 from pathlib import Path
 
 from PIL import Image
@@ -62,6 +63,7 @@ CHAPTER_LABELS = {
     "work": "SELECTED WORK",
     "art": "MY PAINTINGS",
 }
+FIRST_CHAPTER = next(iter(CHAPTER_LABELS))
 # Not 1.0: the photo wall is four separate frames, so a sample or two legitimately
 # slips between them and lands on the wall behind.
 MIN_VISIBLE_RATIO = 0.85
@@ -81,6 +83,11 @@ MIN_VISIBLE_RATIO = 0.85
 # A few percent of overlap is the object's bounding box catching the panel's
 # rounded corner, which nobody can see; a third of it is the bug.
 MAX_PANEL_OVERLAP = 0.06
+# How far off-centre the object may sit inside the space the panel leaves. The
+# island's idle float and the smallest objects clamping against the camera's
+# minimum distance both nudge this, so it is a quarter of the band rather than a
+# hairline — the failure it exists to catch was two thirds of the band.
+MAX_BAND_OFFCENTRE = 0.25
 # The floor is "a close-up, not a room shot"; the ceiling is "the object still
 # has air around it". The smallest objects clamp against the camera's minimum
 # distance, which is why the floor is 0.12 rather than the 0.46 `fill` target.
@@ -143,12 +150,52 @@ def panel_overlap(probe: dict | None, panel: dict | None) -> float | None:
     return (wide * tall) / (rect["width"] * rect["height"])
 
 
+def loader_gone(page, timeout_ms: int = 8000) -> tuple[bool, str]:
+    """Whether the loading screen has actually left the pixels.
+
+    The loader is a full-screen plate over the island, so "dismissed" cannot mean
+    "wearing the class that is supposed to fade it". `is-done` lands a frame
+    before the computed style follows it, and a fade that never completed would
+    keep the plate up while the class insisted otherwise. Measured instead:
+    computed opacity or visibility, plus a hit test at the middle of the
+    viewport, because the requirement is that the visitor can see and click the
+    island.
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    detail = "no loader"
+    while True:
+        state = page.evaluate(
+            """() => {
+                const el = document.querySelector('.loading-screen')
+                if (!el) return { gone: true, detail: 'removed from the DOM' }
+                const style = getComputedStyle(el)
+                const hit = document.elementFromPoint(innerWidth / 2, innerHeight / 2)
+                const name = hit
+                    ? hit.tagName.toLowerCase() + (typeof hit.className === 'string' && hit.className.trim()
+                        ? '.' + hit.className.trim().split(/\\s+/).join('.')
+                        : '')
+                    : 'nothing'
+                const faded = style.visibility === 'hidden' || Number(style.opacity) === 0
+                return {
+                    gone: faded && !(hit && el.contains(hit)),
+                    detail: `opacity ${style.opacity}, ${style.visibility}, centre hits ${name}`,
+                }
+            }"""
+        )
+        detail = state["detail"]
+        if state["gone"]:
+            return True, detail
+        if time.monotonic() >= deadline:
+            return False, detail
+        page.wait_for_timeout(100)
+
+
 def run_theme(page, label: str, viewport_width: int) -> dict | None:
     page.wait_for_selector(".overlay.is-ready", timeout=READY_TIMEOUT)
     check(f"{label}: intro completes", True)
 
-    loader = page.get_attribute(".loading-screen", "class") or ""
-    check(f"{label}: loading screen dismissed", "is-done" in loader, loader)
+    gone, detail = loader_gone(page)
+    check(f"{label}: the loading screen actually leaves", gone, detail)
 
     hero = (page.inner_text(".scene-intro h1") or "").strip()
     check(f"{label}: hero copy present", "Lisa" in hero, hero.replace("\n", " / "))
@@ -281,6 +328,10 @@ def run_focus(page, device: str) -> None:
             f"panel reads '{eyebrow}'",
         )
 
+        if chapter == FIRST_CHAPTER:
+            painted, painted_detail = panel_painted(page)
+            check(f"{device}: the chapter panel is readable", painted, painted_detail)
+
         probe = settled_probe(page, chapter, before)
         detail = json.dumps(probe)
         check(
@@ -289,14 +340,8 @@ def run_focus(page, device: str) -> None:
             detail,
         )
 
-        panel = page.evaluate(
-            """() => {
-                const el = document.querySelector('.content-panel')
-                if (!el) return null
-                const r = el.getBoundingClientRect()
-                return { x: r.x, y: r.y, width: r.width, height: r.height }
-            }"""
-        )
+        layout = layout_rects(page)
+        panel = layout["panel"] if layout else None
         overlap = panel_overlap(probe, panel)
         check(
             f"{device}: {chapter} clears the panel describing it",
@@ -304,6 +349,12 @@ def run_focus(page, device: str) -> None:
             f"{overlap:.1%} of the object behind the panel {json.dumps(panel)}"
             if overlap is not None
             else f"probe {detail} panel {json.dumps(panel)}",
+        )
+        centring = band_offcentre(probe, layout)
+        check(
+            f"{device}: {chapter} sits centred in the space the panel leaves",
+            centring is not None and centring[0] <= MAX_BAND_OFFCENTRE,
+            f"{centring[1]} ({centring[0]:.0%} off-centre)" if centring else detail,
         )
         check(
             f"{device}: {chapter} reads as a close-up",
@@ -333,6 +384,209 @@ def run_persistence(context, url: str, device: str) -> None:
     shell = page.get_attribute(".app-shell", "class") or ""
     check(f"{device}: theme survives a fresh visit", "is-night" in shell, shell)
     page.close()
+
+
+def panel_painted(page, timeout_ms: int = 4000) -> tuple[bool, str]:
+    """Whether the chapter panel is actually readable, not merely present.
+
+    Every other assertion about a chapter treats the panel as a rectangle: the
+    object has to clear it and sit centred beside it. All of that stays true of a
+    panel at zero opacity, which is a real failure mode here, because the panel
+    arrives on a CSS animation — one missing `animation-fill-mode` and the words
+    would be invisible while the layout around them behaved perfectly.
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    detail = "no panel"
+    while True:
+        state = page.evaluate(
+            """() => {
+                const el = document.querySelector('.content-panel')
+                if (!el) return { ok: false, detail: 'no panel' }
+                const style = getComputedStyle(el)
+                const rect = el.getBoundingClientRect()
+                const heading = el.querySelector('h1')
+                const words = (heading?.textContent ?? '').trim()
+                return {
+                    ok: Number(style.opacity) === 1
+                        && style.visibility === 'visible'
+                        && rect.width > 200
+                        && rect.height > 120
+                        && words.length > 3,
+                    detail: `opacity ${style.opacity}, ${Math.round(rect.width)}x${Math.round(rect.height)}, reads '${words}'`,
+                }
+            }"""
+        )
+        detail = state["detail"]
+        if state["ok"]:
+            return True, detail
+        if time.monotonic() >= deadline:
+            return False, detail
+        page.wait_for_timeout(100)
+
+
+def layout_rects(page) -> dict | None:
+    """The chapter panel, the topbar and the viewport, in CSS pixels."""
+    return page.evaluate(
+        """() => {
+            const panel = document.querySelector('.content-panel')
+            if (!panel) return null
+            const p = panel.getBoundingClientRect()
+            const bar = document.querySelector('.topbar')?.getBoundingClientRect()
+            return {
+                panel: { x: p.x, y: p.y, width: p.width, height: p.height },
+                barBottom: bar ? bar.y + bar.height : 0,
+                vw: window.innerWidth,
+                vh: window.innerHeight,
+            }
+        }"""
+    )
+
+
+def band_offcentre(probe: dict | None, layout: dict | None) -> tuple[float, str] | None:
+    """How far off-centre the object sits in the space the panel leaves free.
+
+    Expressed as a fraction of that space, from the gap on each side of the
+    object. This is the honest form of a check that used to compare the object's
+    position against two hand-written NDC constants: it says what the framing is
+    actually for without repeating the framing's own arithmetic, so it stays true
+    when the panel changes size.
+
+    It earned its place immediately. Reduced motion was switched from a tween to
+    `duration: 0`, which does not fire `onUpdate` — so nothing called
+    `controls.update()`, OrbitControls' damping pulled the camera back toward its
+    stale internal state, and the easel landed 350px right of its mark. Every
+    other check passed: the object was visible, the right size, and clear of the
+    panel by 34 pixels of luck.
+    """
+    if not probe or not layout:
+        return None
+    rect = probe.get("rect")
+    if not rect:
+        return None
+    panel = layout["panel"]
+    if panel["width"] > layout["vw"] * 0.6:
+        # Docked bottom: the free band runs from under the topbar to the panel.
+        start, end = layout["barBottom"], panel["y"]
+        near, far = rect["y"], rect["y"] + rect["height"]
+        axis = "vertical"
+    else:
+        # Docked to one side. The band is whichever side of it is bigger.
+        if panel["x"] + panel["width"] / 2 > layout["vw"] / 2:
+            start, end = 0.0, panel["x"]
+        else:
+            start, end = panel["x"] + panel["width"], float(layout["vw"])
+        near, far = rect["x"], rect["x"] + rect["width"]
+        axis = "horizontal"
+
+    span = max(end - start, 1.0)
+    before, after = near - start, end - far
+    return (
+        abs(before - after) / span,
+        f"{axis} gaps {before:.0f}px vs {after:.0f}px in a {span:.0f}px band",
+    )
+
+
+def run_reduced_motion(browser, url: str, errors: list[str]) -> None:
+    """The site a visitor gets when their system asks for less motion.
+
+    This path had no coverage for five rounds, and it was wrong: the intro and
+    the idle float respected the setting but the chapter camera did not, so the
+    one interaction the whole site is built around still swung through a
+    one-second arc at someone who had asked it not to. Nothing else in this suite
+    would have noticed, because every other context here declares
+    `no-preference` — which is exactly why an untested branch is worth a context
+    of its own rather than a flag on an existing one.
+    """
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 900},
+        reduced_motion="reduce",
+    )
+    page = context.new_page()
+    page.on("pageerror", lambda e: errors.append(f"reduced-motion pageerror: {e}"))
+    page.on(
+        "console",
+        lambda m: errors.append(f"reduced-motion console.{m.type}: {m.text}")
+        if m.type == "error" and not any(k in m.text for k in IGNORED_CONSOLE)
+        else None,
+    )
+    page.goto(url, wait_until="load")
+
+    # The entrance is skipped under this setting, so the loader lifting is the
+    # only proof the scene got built at all.
+    page.wait_for_selector(".loading-screen.is-done", timeout=READY_TIMEOUT)
+    page.wait_for_selector(".overlay.is-ready", timeout=READY_TIMEOUT)
+    gone, detail = loader_gone(page)
+    check("reduced motion: the island still arrives", gone, detail)
+
+    dust = page.evaluate(
+        "() => { const d = document.querySelector('.dust'); return d ? getComputedStyle(d).display : 'absent' }"
+    )
+    check("reduced motion: drifting dust is gone", dust in ("none", "absent"), str(dust))
+
+    before = flights_so_far(page)
+    opened = page.evaluate(
+        """(label) => {
+            const el = [...document.querySelectorAll('.object-label')]
+                .find((node) => node.textContent.trim() === label)
+            if (!el) return false
+            el.focus()
+            el.click()
+            return true
+        }""",
+        "MY PAINTINGS",
+    )
+    if not opened:
+        check("reduced motion: a chapter is reachable", False, "no label")
+    else:
+        started = time.monotonic()
+        landed = False
+        for _ in range(40):
+            flight = page.evaluate("window.__ISLAND_FLIGHT__ ?? null")
+            if flight and flight["count"] > before and not flight["flying"]:
+                landed = True
+                break
+            page.wait_for_timeout(100)
+        elapsed = time.monotonic() - started
+        # A cut, not a dolly. The generous ceiling is for the harness: reading the
+        # flag costs a round trip through a software-rendered page.
+        check(
+            "reduced motion: the camera cuts instead of flying",
+            landed and elapsed < 0.9,
+            f"landed in {elapsed:.2f}s",
+        )
+        probe = page.evaluate("() => window.__ISLAND_PROBE__?.('art') ?? null")
+        check(
+            "reduced motion: the chapter still frames its object",
+            bool(probe)
+            and probe["visibleRatio"] >= MIN_VISIBLE_RATIO
+            and MIN_FRAME_FILL <= probe["fill"] <= MAX_FRAME_FILL,
+            json.dumps(probe),
+        )
+        # The cut has to arrive at the same place the flight would have. This is
+        # the check that caught `duration: 0` leaving the camera 350px short.
+        centring = band_offcentre(probe, layout_rects(page))
+        check(
+            "reduced motion: the cut lands where the framing aimed",
+            centring is not None and centring[0] <= MAX_BAND_OFFCENTRE,
+            f"{centring[1]} ({centring[0]:.0%} off-centre)" if centring else "no probe",
+        )
+        painted, painted_detail = panel_painted(page)
+        check("reduced motion: the chapter is readable", painted, painted_detail)
+        page.screenshot(path=str(OUT / "reduced-motion.png"))
+        # Every other check in this context is answered by JavaScript: a flight
+        # flag, a raycast against the scene graph. All of them are true of a page
+        # that never painted a pixel, and for one round this context's only
+        # artefact was a flat plate of loading screen while all five checks
+        # passed. The image has to be asserted like the others.
+        luma, buckets = spread(OUT / "reduced-motion.png")
+        check(
+            "reduced motion: the island is actually on screen",
+            luma >= 40 and buckets >= 25,
+            f"luma spread {luma:.1f}, {buckets} buckets",
+        )
+
+    page.close()
+    context.close()
 
 
 def run_share_assets(page, url: str) -> None:
@@ -600,6 +854,8 @@ def main() -> None:
                 page.close()
                 run_persistence(context, url, device)
                 context.close()
+
+            run_reduced_motion(browser, url, errors)
 
             # A fresh profile with a dark OS preference and no stored choice.
             page = browser.new_page(

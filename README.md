@@ -25,8 +25,10 @@ Live: <https://lisayinyy.github.io/floating_island/>
   the pointer.
 - **Respects the visitor.** It opens in the theme their operating system asks
   for and remembers the one they pick. `prefers-reduced-motion` skips the
-  entrance and the float, orbit angles are clamped so the scene can never be
-  turned inside out, and the layout has a dedicated phone framing.
+  entrance and the float *and the second-long dolly into every chapter* — the camera
+  is written straight to its mark instead, so the same framing arrives without
+  the ride. Orbit angles are clamped so the scene can never be turned inside out,
+  and the layout has a dedicated phone framing.
 - **Usable without a mouse.** Each 3D object owns a real focusable button, so
   tabbing raises its label and Enter opens the chapter; Escape closes the menu
   sheet, then the panel.
@@ -56,6 +58,13 @@ Live: <https://lisayinyy.github.io/floating_island/>
   up beside the graduation cap on the shelf above it, and the phone's framing slot
   was tuned against a 560px panel that later grew to 494 of 844 pixels and ate the
   object's lower half.
+- **The interface gets out of the way of the island.** Opening a chapter hides
+  the home-view furniture — the corner index and the signature have nothing to
+  say while a panel is talking, and a plate or a glow to rescue their contrast
+  would only add clutter. The reset-camera button stays, because it still does
+  something. The wordmark keeps a frosted pill behind it instead: it is a link,
+  it cannot leave, and the `about` close-up puts it flat against the cabin's
+  brown back wall.
 
 ## Design language
 
@@ -146,6 +155,36 @@ with software WebGL and checks the failures that have actually happened here:
   is no use if the object is behind the thing describing it. "Visible" was never
   the whole requirement: the easel was perfectly unobstructed, it was just a
   speck floating in empty sky.
+- **a chapter that frames its object off to one side.** Clearing the panel is not
+  the same as being composed against it, so the free band beside (or above) the
+  panel is measured and the object's gaps on either side of it have to match
+  within 25%. This is the assertion that caught a 350px error the same afternoon
+  it was written; the older "lands on its framing slot" version passed straight
+  through it.
+- **the loading screen actually leaving.** For six rounds this was a class-name
+  check — `is-done` present, therefore dismissed — and the class lands a frame
+  before the computed style follows it. The loader is a full-screen plate over
+  the island, so it is now measured: computed opacity and visibility, plus a hit
+  test at the middle of the viewport. A control that pins the finished loader at
+  `opacity: 1` proves it: the class-name version still reported "dismissed".
+- **a chapter panel that is actually readable.** Every other chapter assertion
+  treats the panel as a rectangle to clear and compose against, and all of it
+  stays true of a panel at zero opacity — which is a live risk, because the panel
+  arrives on a CSS animation and one missing `animation-fill-mode` would leave
+  the words invisible while the layout behaved perfectly.
+- **the reduced-motion path, in its own browser context.** It is the branch
+  nobody looks at, and it had been shipping a 1.05s dolly for five rounds. The checks
+  are: the island still arrives, the dust is gone, the camera lands in under
+  0.9s, the chapter still frames its object, and the cut lands where the framing
+  aimed. That last one exists because the first attempt at "cut" was a
+  zero-duration tween — and a zero-duration tween never fires `onUpdate`, so
+  `controls.update()` never ran and OrbitControls' damping dragged the camera
+  back toward its stale internal state. Every other check still passed while the
+  easel sat 350px right of its mark. Its checks are also the reason this context
+  now asserts its own screenshot: every other thing it knows comes from
+  JavaScript — a flight flag, a raycast against the scene graph — and all of that
+  is true of a page that never painted a pixel. For one round the context's only
+  artefact was a flat plate of loading screen while all five checks passed.
 - **the right chapter opening at all.** A probe answers about the object it was
   asked about whether or not that chapter is on screen, so the panel's eyebrow is
   checked against the label that was clicked before any conclusion is drawn about
@@ -173,11 +212,11 @@ with software WebGL and checks the failures that have actually happened here:
   silently and neither appears in any screenshot of the page — the favicon
   shipped for a while was a scaffold's purple lightning bolt.
 
-128 checks at the time of writing, across desktop and phone, day and night. The
-camera checks wait for the tween to settle rather than sleeping a fixed 4.2s —
-under software WebGL a 1.05s tween can take several wall-clock seconds, and a
-mid-flight probe once reported the easel covering 117% of the frame when it
-settles at 40%. Settling means *seen moving, then seen stopping*: an earlier
+149 checks at the time of writing, across desktop and phone, day and night, plus
+a reduced-motion pass. The camera checks wait for the tween to settle rather than
+sleeping a fixed 4.2s — under software WebGL a 1.05s tween can take several
+wall-clock seconds, and a mid-flight probe once reported the easel covering 117%
+of the frame when it settles at 40%. Settling means *seen moving, then seen stopping*: an earlier
 version accepted two matching samples, which is also true before the tween
 starts.
 
