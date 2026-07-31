@@ -29,7 +29,7 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else (ROOT / "qa" / "shots")
-PORT = 4390
+PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 4390
 
 ARGS = [
     "--use-gl=angle",
@@ -70,17 +70,17 @@ MIN_VISIBLE_RATIO = 0.85
 #
 # "Visible" was never the whole requirement, and asserting only that let a real
 # regression through: the easel was completely unobstructed, it was just tiny and
-# floating in empty sky next to the island. These mirror `focusFraming` in
-# `src/scene/World.tsx` — the point is that if someone retunes the framing and
-# a chapter slides under the content panel or shrinks back to a speck, the suite
-# says so instead of the deploy being the first place anyone notices.
-FRAMING_SLOTS = {
-    "desktop": {"x": -0.36, "y": 0.0},
-    "mobile": {"x": 0.0, "y": 0.3},
-}
-# Generous enough to absorb the island's idle float and pointer tilt, tight
-# enough that a mis-slotted chapter cannot hide inside it.
-NDC_TOLERANCE = 0.18
+# floating in empty sky next to the island.
+#
+# What replaced the hand-written NDC slots that used to live here is the question
+# those slots were a proxy for: does the chapter view collide with the panel that
+# is describing it? The slots were tuned against a 560px-tall phone panel, and
+# when the panel grew to 494 of 844 pixels they still passed while the object's
+# lower half sat behind it. The panel's own rectangle is the honest reference.
+#
+# A few percent of overlap is the object's bounding box catching the panel's
+# rounded corner, which nobody can see; a third of it is the bug.
+MAX_PANEL_OVERLAP = 0.06
 # The floor is "a close-up, not a room shot"; the ceiling is "the object still
 # has air around it". The smallest objects clamp against the camera's minimum
 # distance, which is why the floor is 0.12 rather than the 0.46 `fill` target.
@@ -117,6 +117,30 @@ def spread(path: Path) -> tuple[float, int]:
     lumas = [0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in pixels]
     buckets = {(r // 24, g // 24, b // 24) for r, g, b in pixels}
     return max(lumas) - min(lumas), len(buckets)
+
+
+def panel_overlap(probe: dict | None, panel: dict | None) -> float | None:
+    """Fraction of the object's on-screen box that the chapter panel covers.
+
+    Both rectangles are in CSS pixels: the object's comes from the probe's
+    projected bounding box, the panel's from its own layout. Nothing here is a
+    number someone tuned, which is the point — the panel is free to change size
+    with its copy or its media query and this check follows it.
+    """
+    if not probe or not panel:
+        return None
+    rect = probe.get("rect")
+    if not rect or rect["width"] <= 0 or rect["height"] <= 0:
+        return None
+    wide = min(rect["x"] + rect["width"], panel["x"] + panel["width"]) - max(
+        rect["x"], panel["x"]
+    )
+    tall = min(rect["y"] + rect["height"], panel["y"] + panel["height"]) - max(
+        rect["y"], panel["y"]
+    )
+    if wide <= 0 or tall <= 0:
+        return 0.0
+    return (wide * tall) / (rect["width"] * rect["height"])
 
 
 def run_theme(page, label: str, viewport_width: int) -> dict | None:
@@ -198,9 +222,38 @@ def run_keyboard(page, device: str) -> None:
     check(f"{device}: escape closes the chapter", panel == 0, f"{panel} panels")
 
 
+def flights_so_far(page) -> int:
+    return int(page.evaluate("window.__ISLAND_FLIGHT__?.count ?? 0"))
+
+
+def settled_probe(page, chapter: str, since: int, tries: int = 40) -> dict | None:
+    """Read the probe once the chapter's camera has actually landed.
+
+    Two earlier versions of this were wrong in instructive ways. A fixed 4.2s
+    sleep raced the tween — under software WebGL a 1.05s tween can take several
+    wall-clock seconds, and a mid-flight probe reported the easel covering 156%
+    of the frame when it settles at 40%. Watching for the projection to stop
+    changing then failed the other way: "stopped" is indistinguishable from "not
+    started", and when the page is frame-starved two samples 400ms apart can land
+    on the same rendered frame while the camera is still mid-arc.
+
+    So the scene publishes its flight state, and this waits for a flight *newer
+    than the one in progress when the chapter was clicked* to finish.
+    """
+    for _ in range(tries):
+        flight = page.evaluate("window.__ISLAND_FLIGHT__ ?? null")
+        if flight and flight["count"] > since and not flight["flying"]:
+            # One more beat for the idle float, which never stops.
+            page.wait_for_timeout(300)
+            break
+        page.wait_for_timeout(300)
+    return page.evaluate("(id) => window.__ISLAND_PROBE__?.(id) ?? null", chapter)
+
+
 def run_focus(page, device: str) -> None:
     """Open every chapter and confirm the camera can actually see its object."""
     for chapter, label in CHAPTER_LABELS.items():
+        before = flights_so_far(page)
         opened = page.evaluate(
             """(label) => {
                 const el = [...document.querySelectorAll('.object-label')]
@@ -216,8 +269,19 @@ def run_focus(page, device: str) -> None:
             check(f"{device}: {chapter} chapter reachable", False, f"no label '{label}'")
             continue
 
-        page.wait_for_timeout(4200)
-        probe = page.evaluate("(id) => window.__ISLAND_PROBE__?.(id) ?? null", chapter)
+        # Which chapter actually opened, before anything is concluded about the
+        # framing: a probe reports on the object it was asked about whether or not
+        # that is the chapter on screen.
+        eyebrow = page.evaluate(
+            "() => document.querySelector('.panel-eyebrow')?.textContent?.trim() ?? ''"
+        )
+        check(
+            f"{device}: clicking {label} opens that chapter",
+            label in eyebrow,
+            f"panel reads '{eyebrow}'",
+        )
+
+        probe = settled_probe(page, chapter, before)
         detail = json.dumps(probe)
         check(
             f"{device}: {chapter} chapter frames its object",
@@ -225,13 +289,21 @@ def run_focus(page, device: str) -> None:
             detail,
         )
 
-        slot = FRAMING_SLOTS[device]
+        panel = page.evaluate(
+            """() => {
+                const el = document.querySelector('.content-panel')
+                if (!el) return null
+                const r = el.getBoundingClientRect()
+                return { x: r.x, y: r.y, width: r.width, height: r.height }
+            }"""
+        )
+        overlap = panel_overlap(probe, panel)
         check(
-            f"{device}: {chapter} lands on its framing slot",
-            bool(probe)
-            and abs(probe["ndc"]["x"] - slot["x"]) <= NDC_TOLERANCE
-            and abs(probe["ndc"]["y"] - slot["y"]) <= NDC_TOLERANCE,
-            detail,
+            f"{device}: {chapter} clears the panel describing it",
+            panel is not None and overlap is not None and overlap <= MAX_PANEL_OVERLAP,
+            f"{overlap:.1%} of the object behind the panel {json.dumps(panel)}"
+            if overlap is not None
+            else f"probe {detail} panel {json.dumps(panel)}",
         )
         check(
             f"{device}: {chapter} reads as a close-up",
@@ -334,8 +406,15 @@ def run_easter_eggs(page, device: str) -> None:
     # --- silhouette mode (press S) -------------------------------------------
     before_buckets, _ = region_signature(page, island)
     page.keyboard.press("s")
-    page.wait_for_timeout(1400)
-    stats = page.evaluate("window.__ISLAND_STATS__ ?? null")
+    # Poll: the stats snapshot is rebuilt on a 450ms timer, and a frame-starved
+    # page delays timers, so a fixed wait reported "not in silhouette" while the
+    # screenshot on the next line was plainly a silhouette.
+    stats = None
+    for _ in range(14):
+        page.wait_for_timeout(400)
+        stats = page.evaluate("window.__ISLAND_STATS__ ?? null")
+        if stats and stats.get("silhouette") is True:
+            break
     check(
         f"{device}: pressing S enters silhouette mode",
         bool(stats) and stats.get("silhouette") is True,
@@ -406,12 +485,24 @@ def run_easter_eggs(page, device: str) -> None:
         )
 
 
+def serve_on(port: int) -> tuple[socketserver.TCPServer, str]:
+    """Serve `dist/` on a port that a back-to-back run can bind again.
+
+    `allow_reuse_address` has to be set on the class *before* the server is
+    constructed, because that is when the socket is bound. Setting it on the
+    instance afterwards did nothing, so a second run inside a minute of the first
+    died on "address already in use" — which is why every run so far was given a
+    hand-picked fresh port.
+    """
+    socketserver.TCPServer.allow_reuse_address = True
+    httpd = socketserver.TCPServer(("127.0.0.1", port), Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd, f"http://127.0.0.1:{port}/"
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    httpd = socketserver.TCPServer(("127.0.0.1", PORT), Handler)
-    httpd.allow_reuse_address = True
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    url = f"http://127.0.0.1:{PORT}/"
+    httpd, url = serve_on(PORT)
     errors: list[str] = []
 
     try:
@@ -423,6 +514,18 @@ def main() -> None:
                     reduced_motion="no-preference",
                 )
                 page = context.new_page()
+                # Every byte this page needs has to come from this page's own
+                # origin. Fonts used to come from Google, which cost a DNS
+                # lookup, a TLS handshake and a stylesheet round trip that also
+                # blocked script execution — and an `@import` is one line, so it
+                # could come back without anyone noticing.
+                offsite: list[str] = []
+                page.on(
+                    "request",
+                    lambda r: offsite.append(r.url)
+                    if not r.url.startswith(url) and not r.url.startswith("data:")
+                    else None,
+                )
                 page.on("pageerror", lambda e, d=device: errors.append(f"{d} pageerror: {e}"))
                 page.on(
                     "console",
@@ -483,6 +586,12 @@ def main() -> None:
                 if device == "desktop":
                     run_share_assets(page, url)
                     run_easter_eggs(page, device)
+
+                check(
+                    f"{device}: nothing is loaded from a third party",
+                    not offsite,
+                    ", ".join(sorted({u.split("/")[2] for u in offsite})) or "same origin only",
+                )
 
                 # Leave the island in night mode, then confirm a fresh visit in
                 # the same browser profile still opens at night.

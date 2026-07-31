@@ -51,7 +51,34 @@ function App() {
   const [resetKey, setResetKey] = useState(0)
   const [introComplete, setIntroComplete] = useState(false)
   const [sceneReady, setSceneReady] = useState(false)
+  const [sceneMounted, setSceneMounted] = useState(false)
   const theme = useWorldStore((state) => state.theme)
+
+  /*
+   * Mount the renderer one painted frame later than the loading screen.
+   *
+   * `lazy` keeps three.js off the entry chunk, but the moment that chunk
+   * resolves React mounts the Canvas in the same commit as the loader — and
+   * WebGL context creation, shader compilation and the first scene build all run
+   * before the browser gets a chance to paint that commit. Two frames: the first
+   * schedules the loader's paint, the second runs after it has happened.
+   *
+   * Honest caveat: this is reasoning, not a measurement. The QA harness renders
+   * WebGL in software, where the compositor itself costs ~2s a frame and swamps
+   * any ordering this changes; in a plain headless browser WebGL fails instantly
+   * so there is no init cost to move. It cannot make paint later, and on real
+   * hardware the init it steps over is real.
+   */
+  useEffect(() => {
+    let second = 0
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setSceneMounted(true))
+    })
+    return () => {
+      cancelAnimationFrame(first)
+      cancelAnimationFrame(second)
+    }
+  }, [])
 
   // Follow the operating system until the visitor picks a side themselves.
   useEffect(() => watchSystemTheme(), [])
@@ -60,14 +87,16 @@ function App() {
 
   return (
     <main className={`app-shell ${theme === 'night' ? 'is-night' : 'is-day'}`}>
-      <Suspense fallback={null}>
-        <Stage
-          resetKey={resetKey}
-          introComplete={introComplete}
-          onIntroComplete={() => setIntroComplete(true)}
-          onSceneReady={() => setSceneReady(true)}
-        />
-      </Suspense>
+      {sceneMounted && (
+        <Suspense fallback={null}>
+          <Stage
+            resetKey={resetKey}
+            introComplete={introComplete}
+            onIntroComplete={() => setIntroComplete(true)}
+            onSceneReady={() => setSceneReady(true)}
+          />
+        </Suspense>
+      )}
       <Overlay introComplete={introComplete} onReset={() => setResetKey((value) => value + 1)} />
       <LoadingScreen isNight={theme === 'night'} sceneReady={sceneReady} />
     </main>

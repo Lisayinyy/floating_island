@@ -48,8 +48,9 @@ def main() -> int:
         print("dist/index.html is missing — run `npm run build` first")
         return 1
 
+    # On the class, before binding: see qa/verify.py's serve_on().
+    socketserver.TCPServer.allow_reuse_address = True
     httpd = socketserver.TCPServer(("127.0.0.1", PORT), Handler)
-    httpd.allow_reuse_address = True
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
 
     try:

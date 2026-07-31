@@ -187,6 +187,8 @@ function SceneProbes() {
       // `radius / distance` form: the bounding sphere of a wide flat object like
       // the photo wall is much larger than the object reads on screen, and it is
       // the on-screen reading we care about.
+      let minX = Infinity
+      let maxX = -Infinity
       let minY = Infinity
       let maxY = -Infinity
       for (let i = 0; i < 8; i += 1) {
@@ -195,9 +197,16 @@ function SceneProbes() {
           i & 2 ? box.max.y : box.min.y,
           i & 4 ? box.max.z : box.min.z,
         ).project(camera)
+        minX = Math.min(minX, corner.x)
+        maxX = Math.max(maxX, corner.x)
         minY = Math.min(minY, corner.y)
         maxY = Math.max(maxY, corner.y)
       }
+
+      const left = ((minX + 1) / 2) * size.width
+      const right = ((maxX + 1) / 2) * size.width
+      const top = ((1 - maxY) / 2) * size.height
+      const bottom = ((1 - minY) / 2) * size.height
 
       return {
         visibleRatio: Number((seen / points.length).toFixed(3)),
@@ -206,6 +215,15 @@ function SceneProbes() {
         ndc: { x: Number(ndc.x.toFixed(3)), y: Number(ndc.y.toFixed(3)) },
         // NDC spans -1..1, so a full-height object spans 2.
         fill: Number(((maxY - minY) / 2).toFixed(3)),
+        // The same box in CSS pixels, so a test can ask the question that
+        // actually matters on a phone: does the chapter view collide with the
+        // panel that is doing the reading?
+        rect: {
+          x: Math.round(left),
+          y: Math.round(top),
+          width: Math.round(right - left),
+          height: Math.round(bottom - top),
+        },
       }
     }
 
@@ -288,17 +306,20 @@ function SceneProbes() {
  *
  * - `fill` — how much of the frame height the object's bounding sphere should
  *   cover, so a graduation cap and a photo wall read at a comparable size.
- * - `ndcX`/`ndcY` — where the object should sit on screen. On desktop the
- *   content panel is docked right, so the object is placed left of centre; on a
- *   phone the panel is docked bottom, so the object is lifted into the top half.
+ * - `ndcX`/`ndcY` — not written down. Where the object should sit is whatever is
+ *   left of the viewport once the chapter panel has taken its share, and the
+ *   panel docks right on a desktop and bottom on a phone at a size that depends
+ *   on the copy inside it. `readerBand()` measures it. The hand-written pair that
+ *   used to live here was tuned against a 560px-tall panel and quietly stopped
+ *   being true on a phone: the object was centred at the vertical middle of the
+ *   free half, then the panel grew to 494 of 844 pixels and ate the object's
+ *   lower half.
  * - the distance clamps keep the camera out of the furniture for tiny objects
  *   and stop it retreating to orbit for big ones.
  */
 type FocusFrame = {
   fov: number
   fill: number
-  ndcX: number
-  ndcY: number
   minDistance: number
   maxDistance: number
 }
@@ -311,8 +332,66 @@ const focusFraming: Record<'desktop' | 'mobile', FocusFrame> = {
   // objects would need to be viewed from under 4 units to reach `fill`, which
   // puts the camera inside the cabin and crops away the shelf that gives the cap
   // its context. So the two small objects still clamp, they just clamp closer.
-  desktop: { fov: 34, fill: 0.46, ndcX: -0.36, ndcY: 0.0, minDistance: 6.2, maxDistance: 17 },
-  mobile: { fov: 42, fill: 0.5, ndcX: 0.0, ndcY: 0.3, minDistance: 6.6, maxDistance: 19 },
+  desktop: { fov: 34, fill: 0.46, minDistance: 6.2, maxDistance: 17 },
+  mobile: { fov: 42, fill: 0.5, minDistance: 6.6, maxDistance: 19 },
+}
+
+/**
+ * The part of the viewport the chapter panel has not taken, in NDC.
+ *
+ * `fillLimit` is that band's shorter side expressed the same way `fill` is — a
+ * fraction of frame height — so an object can be asked to be as large as the
+ * framing wants *or* as large as the free space allows, whichever is smaller.
+ */
+type ReaderBand = { ndcX: number; ndcY: number; fillLimit: number }
+
+/** Whole viewport, used before a panel exists and in a non-DOM environment. */
+const OPEN_BAND: ReaderBand = { ndcX: 0, ndcY: 0, fillLimit: 1 }
+
+/** Breathing room between the object and the panel edge, in CSS pixels. */
+const BAND_MARGIN = 14
+
+function readerBand(viewWidth: number, viewHeight: number): ReaderBand {
+  if (typeof document === 'undefined' || viewWidth <= 0 || viewHeight <= 0) return OPEN_BAND
+  const panel = document.querySelector<HTMLElement>('.content-panel')
+  if (!panel) return OPEN_BAND
+
+  // `offset*` rather than `getBoundingClientRect()`: the panel plays a 320ms
+  // translate-and-scale entrance, and this runs in the same commit that mounts
+  // it, so a rect read here would be the rect of where the panel starts from.
+  // Offsets are layout, and layout is what we need.
+  const panelLeft = panel.offsetLeft
+  const panelTop = panel.offsetTop
+  const panelWidth = panel.offsetWidth
+  const panelHeight = panel.offsetHeight
+  if (panelWidth <= 0 || panelHeight <= 0) return OPEN_BAND
+
+  const topbar = document.querySelector<HTMLElement>('.topbar')
+  let top = topbar ? topbar.offsetTop + topbar.offsetHeight + BAND_MARGIN : 0
+  let bottom = viewHeight
+  let left = 0
+  let right = viewWidth
+
+  // Which edge it docks to is read from the panel itself rather than from a
+  // matching media query, so the two can never disagree.
+  if (panelWidth > viewWidth * 0.6) {
+    bottom = panelTop - BAND_MARGIN
+  } else if (panelLeft + panelWidth / 2 > viewWidth / 2) {
+    right = panelLeft - BAND_MARGIN
+  } else {
+    left = panelLeft + panelWidth + BAND_MARGIN
+  }
+
+  const bandWidth = Math.max(right - left, 1)
+  const bandHeight = Math.max(bottom - top, 1)
+
+  return {
+    ndcX: ((left + bandWidth / 2) / viewWidth) * 2 - 1,
+    ndcY: 1 - ((top + bandHeight / 2) / viewHeight) * 2,
+    // 0.82 leaves the object short of touching the panel; a sphere that exactly
+    // fills the band reads as cramped and clips under perspective.
+    fillLimit: (Math.min(bandWidth, bandHeight) / viewHeight) * 0.82,
+  }
 }
 
 const UP = new Vector3(0, 1, 0)
@@ -322,6 +401,7 @@ function focusViewFor(
   home: Framing,
   frame: FocusFrame,
   aspect: number,
+  band: ReaderBand,
 ): { camera: [number, number, number]; target: [number, number, number] } {
   const direction = new Vector3(
     home.camera[0] - home.target[0],
@@ -334,8 +414,10 @@ function focusViewFor(
   const right = new Vector3().crossVectors(UP, direction).normalize()
   const screenUp = new Vector3().crossVectors(direction, right).normalize()
 
-  // Distance that makes the bounding sphere cover `fill` of the frame height.
-  const halfAngle = MathUtils.degToRad(frame.fov * frame.fill) / 2
+  // Distance that makes the bounding sphere cover `fill` of the frame height,
+  // or as much of it as the free band can hold.
+  const fill = Math.min(frame.fill, band.fillLimit)
+  const halfAngle = MathUtils.degToRad(frame.fov * fill) / 2
   const distance = MathUtils.clamp(
     object.radius / Math.sin(halfAngle),
     frame.minDistance,
@@ -348,8 +430,8 @@ function focusViewFor(
   const halfWidth = halfHeight * aspect
   const target = object.centre
     .clone()
-    .addScaledVector(right, -frame.ndcX * halfWidth)
-    .addScaledVector(screenUp, -frame.ndcY * halfHeight)
+    .addScaledVector(right, -band.ndcX * halfWidth)
+    .addScaledVector(screenUp, -band.ndcY * halfHeight)
 
   return {
     target: [target.x, target.y, target.z],
@@ -523,6 +605,7 @@ function Controls({
   const onIntroCompleteRef = useRef(onIntroComplete)
   const camera = useThree((state) => state.camera)
   const width = useThree((state) => state.size.width)
+  const height = useThree((state) => state.size.height)
   const activeItem = useWorldStore((state) => state.activeItem)
 
   useEffect(() => {
@@ -645,7 +728,8 @@ function Controls({
     const home = framingFor(homeFraming, isMobile)
     const frame = focusFraming[isMobile ? 'mobile' : 'desktop']
     const measured = activeItem ? measureWorldObject(activeItem) : null
-    const focus = measured ? focusViewFor(measured, home, frame, camera.aspect) : null
+    const band = activeItem ? readerBand(width, height) : OPEN_BAND
+    const focus = measured ? focusViewFor(measured, home, frame, camera.aspect, band) : null
     const targetPosition = focus?.target ?? home.target
     const cameraPosition = focus?.camera ?? home.camera
 
@@ -655,6 +739,26 @@ function Controls({
     gsap.killTweensOf(camera.position)
     gsap.killTweensOf(controls.target)
 
+    /*
+     * Whether the camera is currently flying somewhere, and how many flights
+     * there have been.
+     *
+     * Only a test reads this, and only because every outside-in alternative
+     * failed. Watching the projection stop changing cannot tell "stopped" from
+     * "not started", and under software WebGL two samples 400ms apart can land on
+     * the same rendered frame mid-arc. A bare `flying` flag has the same hole one
+     * level up: a test that polls before this effect commits reads the *previous*
+     * flight's `false`. The counter closes it — a caller waits for a flight later
+     * than the one it saw before it clicked.
+     */
+    const flightCount = (window.__ISLAND_FLIGHT__?.count ?? 0) + 1
+    window.__ISLAND_FLIGHT__ = { flying: true, count: flightCount }
+    let landings = 2
+    const land = () => {
+      landings -= 1
+      if (landings === 0) window.__ISLAND_FLIGHT__ = { flying: false, count: flightCount }
+    }
+
     const cameraTween = gsap.to(camera.position, {
       x: cameraPosition[0],
       y: cameraPosition[1],
@@ -662,6 +766,7 @@ function Controls({
       duration: 1.05,
       ease: 'power3.inOut',
       onUpdate: () => controls.update(),
+      onComplete: land,
     })
     const targetTween = gsap.to(controls.target, {
       x: targetPosition[0],
@@ -670,13 +775,15 @@ function Controls({
       duration: 0.95,
       ease: 'power3.inOut',
       onUpdate: () => controls.update(),
+      onComplete: land,
     })
 
     return () => {
       cameraTween.kill()
       targetTween.kill()
+      window.__ISLAND_FLIGHT__ = { flying: false, count: flightCount }
     }
-  }, [activeItem, camera, introComplete, resetKey, width])
+  }, [activeItem, camera, height, introComplete, resetKey, width])
 
   return (
     <OrbitControls

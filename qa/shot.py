@@ -38,8 +38,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 def serve():
     socketserver.TCPServer.allow_request = True
+    # On the class, before binding: see qa/verify.py's serve_on().
+    socketserver.TCPServer.allow_reuse_address = True
     httpd = socketserver.TCPServer(("127.0.0.1", PORT), Handler)
-    httpd.allow_reuse_address = True
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
     return httpd

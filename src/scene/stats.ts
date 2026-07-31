@@ -41,6 +41,15 @@ export type FocusProbe = {
    * has to be asserted separately from the occlusion.
    */
   fill: number
+  /**
+   * The same projected box in CSS pixels.
+   *
+   * `ndc` and `fill` say where the object is and how big it reads; this says it
+   * in the same units as the chapter panel's own rectangle, which is the only
+   * way to assert the thing a phone visitor actually cares about — that the
+   * object is not sitting behind the panel describing it.
+   */
+  rect: { x: number; y: number; width: number; height: number }
 }
 
 declare global {
@@ -54,5 +63,14 @@ declare global {
      * not in the graph. Lets a test click a detail without hard-coded pixels.
      */
     __ISLAND_AT__?: (name: string) => { x: number; y: number } | null
+    /**
+     * Camera flight state: whether a chapter or home tween is currently moving
+     * the camera, and how many flights have been started.
+     *
+     * A test cannot infer either half from the outside. A projection that has
+     * stopped changing looks the same as one that has not started, and a bare
+     * boolean can be read before the new flight has begun — hence the counter.
+     */
+    __ISLAND_FLIGHT__?: { flying: boolean; count: number }
   }
 }

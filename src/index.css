@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Shadows+Into+Light+Two&display=swap");
+/* Fonts are linked from index.html, not imported here: see the comment there. */
 
 :root {
   font-family: Inter, "Helvetica Neue", Arial, sans-serif;

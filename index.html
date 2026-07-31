@@ -12,6 +12,76 @@
     <meta name="color-scheme" content="light dark" />
     <title>Lisa World | A floating inner world</title>
 
+    <!-- Fonts are self-hosted, and declared here rather than in src/index.css,
+         for two reasons that both showed up in a waterfall.
+         1. Google Fonts cost a DNS lookup, a TLS handshake and a stylesheet round
+            trip before the first font byte. Worse, a pending stylesheet blocks
+            script execution, so linking it in the head delayed this site's own JS
+            by ~700ms and pushed first contentful paint to 3.0s.
+         2. `base: './'` means Vite cannot rewrite `/fonts/...` references inside a
+            bundled stylesheet, so a project-subpath deploy would 404 on them.
+            Inline rules can use the same `./` the rest of the page uses.
+         Six latin subsets, 84 kB total, same origin. All three families are
+         OFL-licensed; see public/fonts/OFL.txt. -->
+    <link
+      rel="preload"
+      href="./fonts/ibm-plex-mono-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="./fonts/shadows-into-light-two-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <style>
+      @font-face {
+        font-family: 'IBM Plex Mono';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('./fonts/ibm-plex-mono-400.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'IBM Plex Mono';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('./fonts/ibm-plex-mono-500.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'IBM Plex Mono';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('./fonts/ibm-plex-mono-600.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Instrument Serif';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('./fonts/instrument-serif-400.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Instrument Serif';
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url('./fonts/instrument-serif-400-italic.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Shadows Into Light Two';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('./fonts/shadows-into-light-two-400.woff2') format('woff2');
+      }
+    </style>
+
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Lisa World | A floating inner world" />
     <meta

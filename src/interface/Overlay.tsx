@@ -36,9 +36,9 @@ const panels: Record<
   philosophy: {
     index: '01',
     eyebrow: 'HOW I WORK',
-    title: 'Build, don’t just spec',
+    title: 'A spec nobody can click is a guess',
     description:
-      'I prototype with AI-assisted coding, ship quickly, listen to real users and let data—not opinions—decide.',
+      'So I build the thing instead. A rough prototype in an afternoon, in front of real users by the end of the week, and then whatever the data says wins — including the weeks it says I was wrong.',
     meta: 'USER FIRST · DATA OVER OPINIONS · SHIP FAST',
     action: 'Read my product principles',
     href: 'https://lisayinyy.github.io/personal_web/#how',
@@ -47,9 +47,9 @@ const panels: Record<
   about: {
     index: '02',
     eyebrow: 'ABOUT LISA',
-    title: 'AI PM who actually builds',
+    title: 'Lisa, also Yuanyuan',
     description:
-      'I’m Lisa, also Yuanyuan: data-driven, design-minded and code-capable, from product strategy to working LLM prototypes.',
+      'AI product manager by title, builder by habit. Close enough to the code to know what I’m asking for, close enough to the users to know whether it was worth asking.',
     meta: 'AI PRODUCT · HCI / UX · VIBE CODING',
     action: 'Meet Lisa',
     href: 'https://lisayinyy.github.io/personal_web/#about',
@@ -58,9 +58,9 @@ const panels: Record<
   experience: {
     index: '03',
     eyebrow: 'EXPERIENCE + EDUCATION',
-    title: 'From Michigan CS to AI products',
+    title: 'Michigan CS, then straight at AI',
     description:
-      'MiniMax, ZhenFund, Deloitte and AI4ALL shaped a path through product growth, data science, research and hands-on building.',
+      'A computer science degree with an HCI minor, then MiniMax, ZhenFund, Deloitte and AI4ALL — product growth, data science, research, and a lot of building things nobody had asked for yet.',
     meta: 'MICHIGAN CS · HCI MINOR · DEAN’S LIST',
     action: 'See the full timeline',
     href: 'https://lisayinyy.github.io/personal_web/#exp',
@@ -69,9 +69,9 @@ const panels: Record<
   toolkit: {
     index: '04',
     eyebrow: 'AI CREATIVE TOOLKIT',
-    title: 'Tools that turn ideas into products',
+    title: 'What I actually keep open',
     description:
-      'Claude Code, Cursor, MiniMax, React, Python, Figma and a growing agent stack power the things I imagine and ship.',
+      'Claude Code and Cursor in one window, MiniMax models in the next, React and Python for the parts that have to work, Figma for the parts that have to feel right.',
     meta: 'AI AGENTS · REACT · PYTHON · FIGMA',
     action: 'Explore my toolkit',
     href: 'https://lisayinyy.github.io/personal_web/#contact',
@@ -80,9 +80,9 @@ const panels: Record<
   work: {
     index: '05',
     eyebrow: 'SELECTED WORK',
-    title: 'Products I made real',
+    title: 'Things that made it out of the doc',
     description:
-      'PromptAI, Skills Master, a Xiaohongshu sentiment monitor and internal growth tools built from zero to working product.',
+      'PromptAI, Skills Master, a Xiaohongshu sentiment monitor and a handful of internal growth tools — each taken from an empty repo to something people open on a Tuesday.',
     meta: 'PROMPTAI · SKILLS MASTER · SENTIMENT MONITOR',
     action: 'View selected work',
     href: 'https://lisayinyy.github.io/personal_web/#work',
@@ -91,9 +91,9 @@ const panels: Record<
   art: {
     index: '06',
     eyebrow: 'MY PAINTINGS',
-    title: 'A space for the worlds I draw',
+    title: 'The other half of the island',
     description:
-      'This easel will become a changing gallery for my paintings, sketches and visual experiments.',
+      'When I’m not shipping I’m painting. This easel is where the sketches, studies and half-finished worlds go — starting with the one you’re standing on.',
     meta: 'PAINTING · SKETCHES · VISUAL DIARY',
     action: 'Visit my creative world',
     href: 'https://lisayinyy.github.io/personal_web/#art',

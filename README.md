@@ -48,11 +48,14 @@ Live: <https://lisayinyy.github.io/floating_island/>
   burning — the reference site's silhouette, borrowed as an easter egg instead of
   a default. It is never saved, because it is a thing you do, not a mode you keep.
 - **Framing is measured, never hand-written.** Chapter cameras are derived from a
-  live bounding-sphere measurement of the object plus a frame-relative target
-  (`fill`, `ndcX`, `ndcY`), and floating labels sit at the measured top of each
-  object. Hand-written tables drifted twice — the easel's aim point ended up 1.85
-  units off the easel, and the laptop's label floated up beside the graduation cap
-  on the shelf above it.
+  live bounding-sphere measurement of the object, and *where* the object sits is
+  derived from the chapter panel's own rectangle — whatever the panel leaves free
+  is where the object goes, at whatever size fits. Floating labels sit at the
+  measured top of each object. Hand-written numbers drifted three times: the
+  easel's aim point ended up 1.85 units off the easel, the laptop's label floated
+  up beside the graduation cap on the shelf above it, and the phone's framing slot
+  was tuned against a 560px panel that later grew to 494 of 844 pixels and ate the
+  object's lower half.
 
 ## Design language
 
@@ -72,6 +75,7 @@ by Akira Haga, adapted to a site that has to keep interactive content readable:
 | Custom loading screen | Two counter-rotating dotted rings with a mono caption, painted from a ~17 kB entry chunk so it appears before three.js has downloaded |
 | A single warm window in a dark mass | The right end wall is framed timber around two real openings (`WindowWall`); after dark the panes are the island's brightest note |
 | Theme follows the system, then the visitor | `resolveInitialTheme()` reads `localStorage` first and `prefers-color-scheme` second; an inline script in `index.html` applies it before React mounts, so night visitors never see a white flash |
+| Object placed against the reading column, not centred | Where a chapter puts its object is derived from `.content-panel`'s measured rectangle: docked right on a desktop, docked bottom on a phone, and the object takes the middle of whatever is left |
 | A near-black island silhouette | Available on demand: `S` swaps every material for one flat dark tone, skipping anything genuinely emissive, so the mass reads as a shape with a few warm points inside it |
 
 Where it deliberately differs: plantpot's island is a near-black silhouette,
@@ -90,7 +94,24 @@ blocking first paint. `src/scene/Stage.tsx` is behind `React.lazy` and
 which leaves a ~17 kB entry that renders the shell and loading rings immediately.
 Group order in that config is load-bearing — a group also absorbs the
 dependencies of what it matches, so listing `r3f` first pulled react *and* three
-into one 1.1 MB chunk.
+into one 1.1 MB chunk. The Canvas then mounts one painted frame after the loader,
+so WebGL init cannot block the frame the loader is in.
+
+**Fonts are self-hosted**, and that turned out to matter more than the 725 kB
+bundle. Six latin woff2 subsets, 84 kB, in `public/fonts/`, declared inline in
+`index.html`. The Google Fonts request they replaced cost a DNS lookup, a TLS
+handshake and a stylesheet round trip before the first font byte — and because a
+pending stylesheet blocks script execution, it delayed this site's own JavaScript
+too. Measured on the built site, served locally:
+
+| | Google Fonts | Self-hosted |
+| --- | --- | --- |
+| DOMContentLoaded | 767 ms | 37 ms |
+| Renderer chunks start downloading | 774 ms | 66 ms |
+
+First contentful paint is 112 ms in a plain headless browser. The QA harness
+reports ~2.2 s for the same build because it rasterises everything, page included,
+in software — a number worth knowing about the harness, not about the site.
 
 Lights are counted, not sprinkled: the day theme uses 9 and night 13, and the
 screen-glow lights only exist at night, because a forward renderer pays for every
@@ -119,14 +140,23 @@ with software WebGL and checks the failures that have actually happened here:
   This caught the AI console sitting in a pocket of the room the camera could
   never see into: every visit to that chapter framed a blank wall.
 - **a chapter that frames its object badly.** The same probe reports the object's
-  screen position and the fraction of the frame it covers, and both are asserted.
-  "Visible" was never the whole requirement — the easel was perfectly
-  unobstructed, it was just a speck floating in empty sky.
+  screen position, the fraction of the frame it covers, and its box in CSS
+  pixels, and all three are asserted — including against the chapter panel's own
+  rectangle, because on a phone the panel is docked over the island and "visible"
+  is no use if the object is behind the thing describing it. "Visible" was never
+  the whole requirement: the easel was perfectly unobstructed, it was just a
+  speck floating in empty sky.
+- **the right chapter opening at all.** A probe answers about the object it was
+  asked about whether or not that chapter is on screen, so the panel's eyebrow is
+  checked against the label that was clicked before any conclusion is drawn about
+  the framing.
 - **a scene that quietly stopped building.** `window.__ISLAND_STATS__` reports
   mesh, triangle, light, painted-screen and painted-artwork counts, so a blank
   laptop pane or a missing window light fails a check rather than a screenshot
   review.
 - theme persistence, a dark OS preference, and keyboard-only chapter access
+- **anything arriving from a third party.** Every byte has to come from this
+  page's own origin; an `@import` that reintroduces a font CDN is one line long
 - **the hidden things still being there.** The silhouette key, the campfire poke
   and the lantern toggle are each asserted by sampling the colour spread and mean
   brightness of a region before and after — silhouette has to collapse the tone
@@ -143,7 +173,13 @@ with software WebGL and checks the failures that have actually happened here:
   silently and neither appears in any screenshot of the page — the favicon
   shipped for a while was a scaffold's purple lightning bolt.
 
-114 checks at the time of writing, across desktop and phone, day and night.
+128 checks at the time of writing, across desktop and phone, day and night. The
+camera checks wait for the tween to settle rather than sleeping a fixed 4.2s —
+under software WebGL a 1.05s tween can take several wall-clock seconds, and a
+mid-flight probe once reported the easel covering 117% of the frame when it
+settles at 40%. Settling means *seen moving, then seen stopping*: an earlier
+version accepted two matching samples, which is also true before the tween
+starts.
 
 ```bash
 npm run build
@@ -176,6 +212,7 @@ src/
 │   └── InteractiveObject.tsx  Hover, keyboard access and floating labels
 ├── store/worldStore.ts        Active chapter, theme resolution, silhouette toggle
 └── App.css                    Sky gradients, dust, menu sheet, panels, loader
+public/fonts/                  Six self-hosted latin woff2 subsets (OFL, 84 kB)
 qa/
 ├── verify.py                  Headless WebGL regression pass
 ├── share_card.py              Captures public/share-card.png from the real scene
@@ -196,3 +233,9 @@ bundle works from a project subpath.
 
 Design study of [plantpot.studio](https://www.plantpot.studio) (Akira Haga).
 Built by [Lisa](https://lisayinyy.github.io/personal_web/).
+
+Typefaces, self-hosted under the SIL Open Font License 1.1 — full text and
+copyright holders in [`public/fonts/OFL.txt`](public/fonts/OFL.txt):
+[IBM Plex Mono](https://github.com/IBM/plex),
+[Instrument Serif](https://fonts.google.com/specimen/Instrument+Serif) and
+[Shadows Into Light Two](https://fonts.google.com/specimen/Shadows+Into+Light+Two).
