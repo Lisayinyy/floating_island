@@ -68,14 +68,14 @@ const panels: Record<
   },
   toolkit: {
     index: '04',
-    eyebrow: 'AI CREATIVE TOOLKIT',
-    title: 'Tools that turn ideas into products',
+    eyebrow: 'VIBE CODING IN PRACTICE',
+    title: 'I build the thing, not just the brief',
     description:
-      'Claude Code, Cursor, MiniMax, React, Python, Figma and a growing agent stack power the things I imagine and ship.',
+      'Claude Code, Cursor, MiniMax, React, Python and Figma turn rough ideas into working products—from first prompt to shipped prototype.',
     meta: 'AI AGENTS · REACT · PYTHON · FIGMA',
-    action: 'Explore my toolkit',
+    action: 'Explore my vibe coding work',
     href: 'https://lisayinyy.github.io/Lisa_web/#vibe-coding',
-    object: 'AI CONSOLE',
+    object: 'VIBE CODING CONSOLE',
   },
   work: {
     index: '05',
@@ -110,7 +110,7 @@ const menuLabels: Record<WorldItemId, string> = {
   work: 'Selected Work',
   philosophy: 'How I Work',
   experience: 'Experience',
-  toolkit: 'Creative Toolkit',
+  toolkit: 'Vibe Coding',
 }
 
 const panelIcons = {
