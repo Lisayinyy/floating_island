@@ -517,20 +517,20 @@ export function World({
   return (
     <>
       {isNight && <color attach="background" args={['#151822']} />}
-      <fog attach="fog" args={[isNight ? '#17111d' : '#f1eeee', 90, 900]} />
-      <ambientLight intensity={isNight ? 0.42 : 0.92} color={isNight ? '#c9b9d5' : '#fff0eb'} />
+      <fog attach="fog" args={[isNight ? '#17111d' : '#f5eff2', 90, 900]} />
+      <ambientLight intensity={isNight ? 0.42 : 0.98} color={isNight ? '#c9b9d5' : '#fff5ef'} />
       <hemisphereLight
         args={[
-          isNight ? '#514868' : '#f3dfe6',
-          isNight ? '#100c16' : '#5f4b58',
-          isNight ? 0.56 : 1.15,
+          isNight ? '#514868' : '#f0e7ef',
+          isNight ? '#100c16' : '#75616d',
+          isNight ? 0.56 : 1.05,
         ]}
       />
       <directionalLight
         castShadow
         position={[-5, 10, 7]}
-        intensity={isNight ? 0.64 : 1.8}
-        color={isNight ? '#aaa0d5' : '#ffe6dc'}
+        intensity={isNight ? 0.64 : 1.55}
+        color={isNight ? '#aaa0d5' : '#fff0e9'}
         shadow-mapSize={[1536, 1536]}
         shadow-camera-near={1}
         shadow-camera-far={25}
@@ -631,12 +631,12 @@ export function World({
       </FloatingWorld>
       <ContactShadows
         position={[0, 0.54, 0]}
-        opacity={isNight ? 0.42 : 0.26}
+        opacity={isNight ? 0.42 : 0.19}
         scale={11}
-        blur={3.2}
+        blur={3.8}
         far={5}
         resolution={512}
-        color={isNight ? '#0c0910' : '#4b3845'}
+        color={isNight ? '#0c0910' : '#6b5866'}
       />
       <SceneProbe />
       <Controls

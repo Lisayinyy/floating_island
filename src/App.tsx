@@ -30,11 +30,11 @@ function App() {
       </Canvas>
       <Overlay introComplete={introComplete} onReset={() => setResetKey((value) => value + 1)} />
       <Loader
-        containerStyles={{ background: '#c9b7bf' }}
-        innerStyles={{ width: '180px', background: 'rgba(40, 29, 36, 0.12)' }}
-        barStyles={{ height: '3px', background: '#d46987' }}
+        containerStyles={{ background: '#f5eff2' }}
+        innerStyles={{ width: '180px', background: 'rgba(52, 40, 47, 0.12)' }}
+        barStyles={{ height: '3px', background: '#c97a91' }}
         dataStyles={{
-          color: '#2d222a',
+          color: '#34282f',
           fontFamily: 'IBM Plex Mono, monospace',
           fontSize: '11px',
           letterSpacing: '0.08em',

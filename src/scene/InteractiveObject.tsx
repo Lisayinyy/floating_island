@@ -50,9 +50,13 @@ export function InteractiveObject({
 
   useFrame((_, delta) => {
     if (!groupRef.current) return
-    const targetScale = hovered ? scale * 1.035 : scale
+    const isActive = activeItem === id
+    const targetScale = hovered ? scale * 1.035 : isActive ? scale * 1.015 : scale
+    const targetY = position[1] + (hovered ? 0.08 : isActive ? 0.04 : 0)
     const nextScale = MathUtils.damp(groupRef.current.scale.x, targetScale, 9, delta)
+    const nextY = MathUtils.damp(groupRef.current.position.y, targetY, 8, delta)
     groupRef.current.scale.setScalar(nextScale)
+    groupRef.current.position.y = nextY
   })
 
   const handleHover = (event: ThreeEvent<PointerEvent>, isHovered: boolean) => {

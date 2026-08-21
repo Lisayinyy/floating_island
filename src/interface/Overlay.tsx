@@ -41,7 +41,7 @@ const panels: Record<
       'I prototype with AI-assisted coding, ship quickly, listen to real users and let data—not opinions—decide.',
     meta: 'USER FIRST · DATA OVER OPINIONS · SHIP FAST',
     action: 'Read my product principles',
-    href: 'https://lisayinyy.github.io/personal_web/#how',
+    href: 'https://lisayinyy.github.io/Lisa_web/#vibe-coding',
     object: 'PROTOTYPE DECK',
   },
   about: {
@@ -52,7 +52,7 @@ const panels: Record<
       'I’m Lisa, also Yuanyuan: data-driven, design-minded and code-capable, from product strategy to working LLM prototypes.',
     meta: 'AI PRODUCT · HCI / UX · VIBE CODING',
     action: 'Meet Lisa',
-    href: 'https://lisayinyy.github.io/personal_web/#about',
+    href: 'https://lisayinyy.github.io/Lisa_web/#home',
     object: 'PINK PORTRAIT',
   },
   experience: {
@@ -63,7 +63,7 @@ const panels: Record<
       'MiniMax, ZhenFund, Deloitte and AI4ALL shaped a path through product growth, data science, research and hands-on building.',
     meta: 'MICHIGAN CS · HCI MINOR · DEAN’S LIST',
     action: 'See the full timeline',
-    href: 'https://lisayinyy.github.io/personal_web/#exp',
+    href: 'https://lisayinyy.github.io/Lisa_web/#journey',
     object: 'GRADUATION CAP',
   },
   toolkit: {
@@ -74,7 +74,7 @@ const panels: Record<
       'Claude Code, Cursor, MiniMax, React, Python, Figma and a growing agent stack power the things I imagine and ship.',
     meta: 'AI AGENTS · REACT · PYTHON · FIGMA',
     action: 'Explore my toolkit',
-    href: 'https://lisayinyy.github.io/personal_web/#contact',
+    href: 'https://lisayinyy.github.io/Lisa_web/#vibe-coding',
     object: 'AI CONSOLE',
   },
   work: {
@@ -85,7 +85,7 @@ const panels: Record<
       'PromptAI, Skills Master, a Xiaohongshu sentiment monitor and internal growth tools built from zero to working product.',
     meta: 'PROMPTAI · SKILLS MASTER · SENTIMENT MONITOR',
     action: 'View selected work',
-    href: 'https://lisayinyy.github.io/personal_web/#work',
+    href: 'https://lisayinyy.github.io/Lisa_web/#projects',
     object: 'LAPTOP',
   },
   art: {
@@ -96,7 +96,7 @@ const panels: Record<
       'This easel will become a changing gallery for my paintings, sketches and visual experiments.',
     meta: 'PAINTING · SKETCHES · VISUAL DIARY',
     action: 'Visit my creative world',
-    href: 'https://lisayinyy.github.io/personal_web/#art',
+    href: 'https://lisayinyy.github.io/Lisa_web/art.html',
     object: 'PAINTING EASEL',
   },
 }
@@ -161,7 +161,7 @@ export function Overlay({
         <div className="identity">
           <a
             className="identity-mark"
-            href="https://lisayinyy.github.io/personal_web/"
+            href="https://lisayinyy.github.io/Lisa_web/"
             aria-label="Open Lisa's portfolio"
           >
             L
@@ -183,9 +183,7 @@ export function Overlay({
           </button>
           <a
             className="icon-control portfolio-link"
-            href="https://lisayinyy.github.io/personal_web/"
-            target="_blank"
-            rel="noreferrer"
+            href="https://lisayinyy.github.io/Lisa_web/"
             aria-label="Open Lisa's full portfolio"
             title="Full portfolio"
           >
@@ -224,9 +222,7 @@ export function Overlay({
           </span>
           <a
             className="intro-portal"
-            href="https://lisayinyy.github.io/personal_web/"
-            target="_blank"
-            rel="noreferrer"
+            href="https://lisayinyy.github.io/Lisa_web/"
           >
             Enter the full website
             <ArrowRight size={16} />
@@ -235,7 +231,13 @@ export function Overlay({
       )}
 
       {menuOpen && (
-        <nav className="room-menu" aria-label="Explore Lisa World">
+        <nav
+          className="room-menu"
+          aria-label="Explore Lisa World"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setMenuOpen(false)
+          }}
+        >
           <div className="room-menu-head">
             <span>LISA&apos;S INNER WORLD</span>
             <small>CHOOSE A CHAPTER</small>
@@ -271,9 +273,7 @@ export function Overlay({
           </div>
           <div className="room-menu-socials">
             <a
-              href="https://lisayinyy.github.io/personal_web/"
-              target="_blank"
-              rel="noreferrer"
+              href="https://lisayinyy.github.io/Lisa_web/"
               aria-label="Open Lisa's portfolio"
               title="Portfolio"
             >
@@ -334,7 +334,7 @@ export function Overlay({
           <h1>{panel.title}</h1>
           <p className="panel-description">{panel.description}</p>
           <div className="panel-meta">{panel.meta}</div>
-          <a className="panel-action" href={panel.href} target="_blank" rel="noreferrer">
+          <a className="panel-action" href={panel.href}>
             {panel.action}
             <ArrowRight size={17} />
           </a>
