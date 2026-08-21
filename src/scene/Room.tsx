@@ -271,9 +271,9 @@ function PaintingEasel() {
     <InteractiveObject
       id="art"
       label="MY PAINTINGS"
-      position={[4.45, 0.72, 1.62]}
+      position={[4.05, 0.72, 1.48]}
       rotation={[0, -0.22, 0]}
-      scale={0.68}
+      scale={0.78}
     >
       {[-0.68, 0.68].map((x) => (
         <mesh key={x} position={[x, 0.2, -0.08]} rotation={[0, 0, x * -0.08]} castShadow>
@@ -326,7 +326,7 @@ function PaintingEasel() {
 
 function AICreativeConsole() {
   return (
-    <InteractiveObject id="toolkit" label="VIBE CODING" position={[1.95, 1.12, -0.2]} scale={1.08}>
+    <InteractiveObject id="toolkit" label="AI CREATIVE TOOLKIT" position={[3.25, 1.08, -1.72]} scale={0.9}>
       <RoundedBox args={[1.75, 1.85, 0.82]} radius={0.08} castShadow>
         <meshStandardMaterial color="#ddd3ce" roughness={0.62} metalness={0.06} />
       </RoundedBox>

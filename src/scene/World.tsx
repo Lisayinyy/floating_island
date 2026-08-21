@@ -29,16 +29,16 @@ const focusViews: Record<
     target: [0.05, 3.55, -2.35],
   },
   toolkit: {
-    camera: [6.7, 4.7, 6.45],
-    target: [1.95, 1.52, -0.2],
+    camera: [7.5, 4.8, 6.8],
+    target: [3, 1.75, -1.7],
   },
   work: {
     camera: [5.2, 5.1, 7],
     target: [0.15, 2.42, -1.52],
   },
   art: {
-    camera: [8.55, 4.65, 7.45],
-    target: [4.45, 1.48, 1.62],
+    camera: [8.7, 4.7, 7.5],
+    target: [4.85, 1.58, 1.35],
   },
 }
 
