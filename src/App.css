@@ -1,5 +1,7 @@
 .app-shell {
   --ink: #34282f;
+  --muted: #66545f;
+  --accent: #9f3b5b;
   --paper: rgba(255, 249, 246, 0.72);
   --line: rgba(69, 48, 59, 0.18);
   --ambient: rgba(255, 255, 255, 0.42);
@@ -43,6 +45,8 @@
 
 .app-shell.is-night {
   --ink: #f7efe9;
+  --muted: #d2bfcb;
+  --accent: #f1a8c1;
   --paper: rgba(35, 31, 42, 0.7);
   --line: rgba(247, 239, 233, 0.28);
   --ambient: rgba(255, 207, 173, 0.12);
@@ -163,21 +167,99 @@
 @keyframes menu-enter { from { opacity: 0; backdrop-filter: blur(0); } }
 @keyframes label-enter { from { opacity: 0; transform: translateY(5px); } }
 
+/* Keep the island as the main surface, with readable controls at its edges. */
+.identity b { font-size: 0.875rem; letter-spacing: 0.1em; }
+.identity small { font-size: 0.75rem; letter-spacing: 0.04em; color: var(--muted); }
+.identity-mark, .icon-control { width: 44px; height: 44px; border-color: var(--line); }
+.scene-intro { bottom: 156px; width: min(370px, 32vw); }
+.scene-intro p { max-width: 290px; font-size: 0.75rem; line-height: 1.7; letter-spacing: 0.08em; color: var(--muted); }
+.scene-intro h1 { font-size: clamp(2.5rem, 4.7vw, 4.5rem); line-height: 0.98; letter-spacing: -0.025em; }
+.scene-intro > span { max-width: 315px; font-size: 1rem; line-height: 1.65; color: var(--muted); }
+.intro-portal { min-height: 44px; margin-top: 14px; font-size: 0.875rem; }
+.scene-index { font-size: 0.75rem; letter-spacing: 0.04em; color: var(--muted); }
+.room-menu { overflow-y: auto; }
+.room-menu-head { gap: 16px; font-size: 0.75rem; color: var(--muted); }
+.room-menu-head small { font-size: inherit; }
+.room-menu-links button { min-height: 48px; }
+.room-menu-links button span { font-size: 0.875rem; color: var(--accent); }
+.room-menu-links button:hover b, .room-menu-links button[aria-current] b { color: var(--accent); }
+.room-menu-socials a { display: grid; place-items: center; width: 44px; height: 44px; }
+.menu-open .content-panel { visibility: hidden; pointer-events: none; }
+.object-label { background: var(--paper); border-color: var(--line); font-size: 0.875rem; backdrop-filter: blur(12px); }
+.content-panel { width: min(400px, calc(100vw - 56px)); max-height: calc(100svh - 112px); overflow-y: auto; padding: 26px; border-radius: 18px; background: rgba(255, 250, 248, 0.96); }
+.is-night .content-panel { background: rgba(35, 31, 42, 0.96); }
+.panel-index { font-size: 0.75rem; letter-spacing: 0.04em; color: var(--accent); }
+.panel-close { width: 44px; height: 44px; flex-shrink: 0; }
+.panel-symbol { margin-top: 22px; color: var(--accent); }
+.panel-eyebrow { font-size: 0.75rem; color: var(--muted); }
+.content-panel h1 { font-size: 2.625rem; line-height: 1.05; }
+.content-panel h1:focus { outline: none; }
+.panel-description { font-size: 1rem; line-height: 1.7; color: var(--muted); }
+.panel-meta { font-size: 0.75rem; line-height: 1.8; color: var(--muted); }
+.panel-action { min-height: 44px; gap: 12px; font-size: 0.875rem; }
+.panel-action svg, .panel-footnote svg { flex-shrink: 0; }
+.panel-footnote { font-size: 0.75rem; line-height: 1.6; letter-spacing: 0; color: var(--muted); }
+
+.chapter-dock { position: absolute; bottom: 25px; left: 50%; width: max-content; max-width: calc(100% - 200px); transform: translateX(-50%); pointer-events: auto; }
+.explore-hint { margin: 0 0 12px; color: var(--muted); text-align: center; font-size: 0.875rem; line-height: 1.5; }
+.chapter-dock-links { display: flex; gap: 3px; max-width: 100%; padding: 7px; overflow-x: auto; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); box-shadow: 0 8px 30px rgba(63, 39, 51, 0.06); backdrop-filter: blur(18px); scrollbar-width: thin; }
+.chapter-dock button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-width: 88px; min-height: 66px; padding: 8px 12px; border: 0; border-radius: 13px; color: var(--ink); background: transparent; white-space: nowrap; font-size: 0.875rem; transition: background 180ms ease, color 180ms ease; }
+.chapter-dock button:hover, .chapter-dock button:focus-visible { color: var(--accent); background: var(--ambient); }
+.chapter-dock button:focus-visible { outline-offset: -2px; }
+.overlay:has(.chapter-dock) .scene-index { display: none; }
+
 @media (max-width: 700px) {
   .topbar { top: 16px; right: 16px; left: 16px; }
   .identity small, .portfolio-link { display: none; }
-  .scene-intro { right: 18px; bottom: 54px; left: 18px; width: auto; }
-  .scene-intro h1 { font-size: 46px; }
-  .scene-intro > span { max-width: 310px; }
+  .identity b { font-size: 0.75rem; }
+  .topbar-actions { gap: 5px; }
+  .scene-intro { right: 20px; bottom: 144px; left: 20px; width: auto; }
+  .scene-intro p { margin-bottom: 8px; font-size: 0.75rem; }
+  .scene-intro h1 { font-size: clamp(2rem, 8.8vw, 2.75rem); }
+  .scene-intro h1 br { display: none; }
+  .scene-intro > span { max-width: 340px; margin-top: 10px; font-size: 0.875rem; line-height: 1.5; }
+  .intro-portal { margin-top: 4px; }
   .room-menu { padding: 88px 16px 72px; }
   .room-menu-head { top: 78px; width: calc(100vw - 32px); }
   .room-menu-links { width: calc(100vw - 32px); }
   .room-menu-links button b { font-size: clamp(30px, 10vw, 46px); }
   .room-menu-socials { bottom: 28px; }
-  .content-panel { top: auto; right: 12px; bottom: 12px; left: 12px; width: auto; min-height: 0; max-height: min(70svh, 560px); overflow-y: auto; padding: 20px; }
+  .content-panel { top: auto; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); left: 12px; width: auto; min-height: 0; max-height: min(59svh, 560px); overflow-y: auto; overscroll-behavior: contain; padding: 20px; }
+  .panel-symbol { display: none; }
+  .panel-eyebrow { margin-top: 10px; }
+  .content-panel h1 { font-size: 2rem; }
+  .panel-description { margin-top: 12px; }
+  .panel-meta { margin-top: 16px; }
+  .panel-footnote { padding-top: 16px; }
+  .chapter-dock { right: 0; bottom: max(18px, env(safe-area-inset-bottom)); left: 0; width: 100%; max-width: none; padding-inline: 16px; transform: none; }
+  .chapter-dock-links { border-radius: 16px; }
+  .chapter-dock button { min-width: 106px; min-height: 64px; }
+  .explore-hint { margin-bottom: 8px; font-size: 0.75rem; }
+  .overlay:has(.chapter-dock) .toolbar { display: none; }
   .scene-index { bottom: 18px; left: 18px; }
   .toolbar { right: 17px; bottom: 15px; }
   .overlay:has(.content-panel) .toolbar, .overlay:has(.content-panel) .scene-index { display: none; }
+}
+
+@media (max-height: 650px) and (max-width: 700px) {
+  .scene-intro > span, .scene-intro p { display: none; }
+  .scene-intro { bottom: 128px; }
+  .scene-intro h1 { font-size: 2rem; }
+}
+
+@media (max-height: 700px) and (min-width: 701px) {
+  .scene-intro > span { font-size: 0.875rem; margin-top: 10px; }
+  .scene-intro { bottom: 138px; }
+  .scene-intro h1 { font-size: 3rem; }
+  .scene-intro p { margin-bottom: 10px; }
+}
+
+@media (max-height: 600px) {
+  .room-menu { display: block; padding: 84px 24px 24px; }
+  .room-menu-head { position: static; width: min(430px, 100%); margin: 0 auto 12px; transform: none; }
+  .room-menu-links { width: min(430px, 100%); margin: 0 auto; }
+  .room-menu-links button b { font-size: 1.875rem; }
+  .room-menu-socials { position: static; justify-content: center; margin-top: 16px; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

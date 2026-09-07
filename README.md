@@ -28,6 +28,14 @@ individual objects with optimized GLB assets as the visual direction develops.
 
 ## Design notes
 
+- **Chapters are visible before the menu opens.** The bottom navigation uses the
+  same six chapters as the room objects, with horizontal scrolling on phones.
+  Chapter headings receive keyboard focus; Escape restores it to navigation.
+- **Reduced motion includes the scene.** The island, object hover, fire and
+  particles respect the operating system preference, including live changes.
+- **Dragging is not selecting.** Pointer travel filters accidental chapter
+  clicks, and manual orbit controls interrupt a camera flight cleanly.
+
 - **Chapter framing is derived, not hand-placed on phones.** The panel owns the
   bottom of a small screen, so the orbit target is shifted along the camera's own
   screen-up axis by a fraction of the view height. Shifting along world Y instead

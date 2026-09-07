@@ -6,6 +6,7 @@ import { useWorldStore } from '../store/worldStore'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { PropsWithChildren } from 'react'
 import type { WorldItemId } from '../store/worldStore'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 
 // Registry of the live groups, so a verification probe can ask where an object
 // actually landed on screen instead of trusting hand-written numbers.
@@ -29,6 +30,7 @@ export function InteractiveObject({
 }: InteractiveObjectProps) {
   const groupRef = useRef<Group>(null)
   const [hovered, setHovered] = useState(false)
+  const reduceMotion = useReducedMotion()
   const activeItem = useWorldStore((state) => state.activeItem)
   const setActiveItem = useWorldStore((state) => state.setActiveItem)
 
@@ -50,6 +52,11 @@ export function InteractiveObject({
 
   useFrame((_, delta) => {
     if (!groupRef.current) return
+    if (reduceMotion) {
+      groupRef.current.scale.setScalar(scale)
+      groupRef.current.position.y = position[1]
+      return
+    }
     const isActive = activeItem === id
     const targetScale = hovered ? scale * 1.035 : isActive ? scale * 1.015 : scale
     const targetY = position[1] + (hovered ? 0.08 : isActive ? 0.04 : 0)
@@ -75,6 +82,7 @@ export function InteractiveObject({
       onPointerOut={(event) => handleHover(event, false)}
       onClick={(event) => {
         event.stopPropagation()
+        if (event.delta > 4) return
         setActiveItem(id)
       }}
     >

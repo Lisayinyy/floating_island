@@ -1,6 +1,7 @@
 import { RoundedBox } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 import {
   BufferGeometry,
   CanvasTexture,
@@ -611,6 +612,7 @@ function ArrivalPath({ isNight }: FloatingIslandProps) {
 }
 
 function Campfire({ isNight }: FloatingIslandProps) {
+  const reduceMotion = useReducedMotion()
   const flameRef = useRef<Group>(null)
   const glowRef = useRef<PointLight>(null)
   const emberRef = useRef<Group>(null)
@@ -621,7 +623,7 @@ function Campfire({ isNight }: FloatingIslandProps) {
       return
     }
 
-    const elapsed = state.clock.elapsedTime
+    const elapsed = reduceMotion ? 0 : state.clock.elapsedTime
     const flicker =
       Math.sin(elapsed * 8.2) * 0.06 +
       Math.sin(elapsed * 13.7 + 0.8) * 0.035

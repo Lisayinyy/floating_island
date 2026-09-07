@@ -4,6 +4,7 @@ import gsap from 'gsap'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Group, MathUtils, PerspectiveCamera, Vector3 } from 'three'
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useWorldStore } from '../store/worldStore'
 import type { WorldItemId } from '../store/worldStore'
 import { objectGroups } from './InteractiveObject'
@@ -166,9 +167,9 @@ function FloatingWorld({
   const motionStrength = useRef(1)
   const pointerTarget = useRef({ x: 0, y: 0 })
   const pointerCurrent = useRef({ x: 0, y: 0 })
+  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const isTouchDevice = window.matchMedia('(hover: none), (pointer: coarse)').matches
 
     if (reduceMotion || isTouchDevice) return
@@ -191,15 +192,16 @@ function FloatingWorld({
       window.removeEventListener('pointerleave', resetPointer)
       window.removeEventListener('blur', resetPointer)
     }
-  }, [])
+  }, [reduceMotion])
 
   useLayoutEffect(() => {
     if (!entranceRef.current) return
 
     const group = entranceRef.current
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
     if (reduceMotion) {
+      group.position.set(0, 0, 0)
+      group.scale.setScalar(1)
+      group.rotation.set(0, 0, 0)
       entranceProgress.current.value = 1
       return
     }
@@ -222,10 +224,15 @@ function FloatingWorld({
     return () => {
       entrance.kill()
     }
-  }, [])
+  }, [reduceMotion])
 
   useFrame((state, delta) => {
     if (!floatingRef.current) return
+    if (reduceMotion) {
+      floatingRef.current.position.set(0, 0, 0)
+      floatingRef.current.rotation.set(0, 0, 0)
+      return
+    }
 
     motionStrength.current = MathUtils.damp(
       motionStrength.current,
@@ -287,6 +294,7 @@ function Controls({
   const camera = useThree((state) => state.camera)
   const width = useThree((state) => state.size.width)
   const activeItem = useWorldStore((state) => state.activeItem)
+  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
     onIntroCompleteRef.current = onIntroComplete
@@ -296,6 +304,7 @@ function Controls({
     if (!(camera instanceof PerspectiveCamera) || !controlsRef.current) return
 
     const controls = controlsRef.current
+    let introTimeline: gsap.core.Timeline | undefined
     const startIntro = window.setTimeout(() => {
       if (hasPlayedIntro.current) return
       hasPlayedIntro.current = true
@@ -335,6 +344,7 @@ function Controls({
           onIntroCompleteRef.current()
         },
       })
+      introTimeline = timeline
 
       timeline
         .to(
@@ -343,7 +353,7 @@ function Controls({
             x: introCamera[0] - 0.28,
             y: introCamera[1] + 0.08,
             z: introCamera[2] + 0.34,
-            duration: 1.05,
+            duration: 0.45,
             ease: 'sine.inOut',
             onUpdate: () => controls.update(),
           },
@@ -355,7 +365,7 @@ function Controls({
             x: introTarget[0] - 0.24,
             y: introTarget[1] + 0.1,
             z: introTarget[2],
-            duration: 1.05,
+            duration: 0.45,
             ease: 'sine.inOut',
             onUpdate: () => controls.update(),
           },
@@ -367,11 +377,11 @@ function Controls({
             x: homeCamera[0],
             y: homeCamera[1],
             z: homeCamera[2],
-            duration: 2.45,
+            duration: 1.35,
             ease: 'power3.inOut',
             onUpdate: () => controls.update(),
           },
-          1.12,
+          0.48,
         )
         .to(
           controls.target,
@@ -379,26 +389,27 @@ function Controls({
             x: homeTarget[0],
             y: homeTarget[1],
             z: homeTarget[2],
-            duration: 2.35,
+            duration: 1.3,
             ease: 'power3.inOut',
             onUpdate: () => controls.update(),
           },
-          1.12,
+          0.48,
         )
         .to(
           camera,
           {
             fov: home.fov,
-            duration: 2.2,
+            duration: 1.25,
             ease: 'power2.inOut',
             onUpdate: () => camera.updateProjectionMatrix(),
           },
-          1.2,
+          0.52,
         )
     }, 0)
 
     return () => {
       window.clearTimeout(startIntro)
+      introTimeline?.kill()
       gsap.killTweensOf(camera)
       gsap.killTweensOf(camera.position)
       gsap.killTweensOf(controls.target)
@@ -418,7 +429,7 @@ function Controls({
 
     // A cut, not a flight: gsap's duration 0 never fires onUpdate, so the
     // controls would keep the old target and the camera would drift back.
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (reduceMotion) {
       camera.position.set(...view.camera)
       controls.target.set(...view.target)
       camera.fov = view.fov
@@ -459,7 +470,7 @@ function Controls({
       targetTween.kill()
       fovTween.kill()
     }
-  }, [activeItem, camera, introComplete, resetKey, width])
+  }, [activeItem, camera, introComplete, reduceMotion, resetKey, width])
 
   const isMobile = width < 700
 
@@ -480,8 +491,13 @@ function Controls({
       maxAzimuthAngle={Math.PI / 4}
       rotateSpeed={0.82}
       dampingFactor={0.05}
-      enableDamping
+      enableDamping={!reduceMotion}
       onStart={() => {
+        // A user's drag takes ownership of the camera from a chapter flight.
+        gsap.killTweensOf(camera)
+        gsap.killTweensOf(camera.position)
+        if (controlsRef.current) gsap.killTweensOf(controlsRef.current.target)
+        if (flight().flying) flightEnded()
         document.body.classList.add('is-dragging')
         onDraggingChange(true)
       }}
@@ -506,6 +522,7 @@ export function World({
   const setActiveItem = useWorldStore((state) => state.setActiveItem)
   const theme = useWorldStore((state) => state.theme)
   const isNight = theme === 'night'
+  const reduceMotion = useReducedMotion()
 
   useEffect(
     () => () => {
@@ -550,13 +567,13 @@ export function World({
       />
       {isNight && (
         <>
-          <Stars radius={68} depth={42} count={3600} factor={3.4} saturation={0.2} speed={0.18} />
+          <Stars radius={68} depth={42} count={2400} factor={3.4} saturation={0.2} speed={reduceMotion ? 0 : 0.18} />
           <Sparkles
             count={240}
             position={[0, 7, -7]}
             scale={[30, 18, 15]}
             size={1.65}
-            speed={0.07}
+            speed={reduceMotion ? 0 : 0.07}
             opacity={0.88}
             color="#fff1c6"
           />
@@ -594,7 +611,7 @@ export function World({
         count={isNight ? 72 : 32}
         scale={[21, 12, 18]}
         size={isNight ? 2.2 : 1.2}
-        speed={0.18}
+        speed={reduceMotion ? 0 : 0.18}
         opacity={isNight ? 0.72 : 0.32}
         color={isNight ? '#f2d9e6' : '#fff7f3'}
       />
@@ -613,7 +630,7 @@ export function World({
               position={[0, 2.15, 0.2]}
               scale={[12.5, 4.5, 9.5]}
               size={3.1}
-              speed={0.42}
+              speed={reduceMotion ? 0 : 0.42}
               opacity={0.86}
               color="#ffdfa0"
             />
@@ -622,7 +639,7 @@ export function World({
               position={[-2.2, 5.7, -2.4]}
               scale={[10, 4.4, 4.8]}
               size={2.1}
-              speed={0.3}
+              speed={reduceMotion ? 0 : 0.3}
               opacity={0.62}
               color="#ffe9bc"
             />

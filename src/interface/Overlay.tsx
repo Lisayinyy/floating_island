@@ -16,7 +16,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useWorldStore } from '../store/worldStore'
 import type { WorldItemId } from '../store/worldStore'
 
@@ -130,12 +130,35 @@ export function Overlay({
   onReset: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLElement>(null)
+  const panelTitleRef = useRef<HTMLHeadingElement>(null)
   const activeItem = useWorldStore((state) => state.activeItem)
   const theme = useWorldStore((state) => state.theme)
   const setActiveItem = useWorldStore((state) => state.setActiveItem)
   const toggleTheme = useWorldStore((state) => state.toggleTheme)
   const panel = activeItem ? panels[activeItem] : null
   const PanelIcon = activeItem ? panelIcons[activeItem] : null
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const menuButton = menuButtonRef.current
+    menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    return () => menuButton?.focus()
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (!activeItem) return
+    const trigger = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const menuButton = menuButtonRef.current
+    panelTitleRef.current?.focus({ preventScroll: true })
+    return () => {
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true })
+      else menuButton?.focus({ preventScroll: true })
+    }
+  }, [activeItem])
 
   useEffect(() => {
     if (!menuOpen && !activeItem) return
@@ -200,11 +223,13 @@ export function Overlay({
             <Code2 size={18} strokeWidth={1.8} />
           </a>
           <button
+            ref={menuButtonRef}
             className="icon-control"
             type="button"
             onClick={() => setMenuOpen((value) => !value)}
             aria-label={menuOpen ? 'Close room menu' : 'Open room menu'}
             aria-expanded={menuOpen}
+            aria-controls="room-menu"
             title={menuOpen ? 'Close menu' : 'Menu'}
           >
             {menuOpen ? <X size={19} /> : <Menu size={19} />}
@@ -213,18 +238,18 @@ export function Overlay({
       </header>
 
       {introComplete && !activeItem && (
-        <section className="scene-intro">
+        <section className="scene-intro" inert={menuOpen}>
           <p>AI PRODUCT MANAGER · BUILDER · DREAMER</p>
-          <h1>Welcome to Lisa&apos;s World</h1>
+          <h1>A little world, <br />a lot of Lisa.</h1>
           <span>
-            My real interests, memories and work live together on this floating island.
-            Every object opens a chapter of my story.
+            I build AI products and draw imagined worlds.
+            Explore the objects on my island to get to know me.
           </span>
           <a
             className="intro-portal"
             href="https://lisayinyy.github.io/Lisa_web/"
           >
-            Enter the full website
+            View my full portfolio
             <ArrowRight size={16} />
           </a>
         </section>
@@ -232,6 +257,8 @@ export function Overlay({
 
       {menuOpen && (
         <nav
+          ref={menuRef}
+          id="room-menu"
           className="room-menu"
           aria-label="Explore Lisa World"
           onClick={(event) => {
@@ -260,6 +287,7 @@ export function Overlay({
                 <button
                   key={item}
                   type="button"
+                  aria-current={activeItem === item ? 'page' : undefined}
                   onClick={() => {
                     setActiveItem(item)
                     setMenuOpen(false)
@@ -292,13 +320,30 @@ export function Overlay({
         </nav>
       )}
 
+      {introComplete && !activeItem && !menuOpen && (
+        <nav className="chapter-dock" aria-label="Island chapters">
+          <p className="explore-hint">Drag to look around · Choose a chapter to explore</p>
+          <div className="chapter-dock-links">
+            {itemOrder.map((item) => {
+              const Icon = panelIcons[item]
+              return (
+                <button key={item} type="button" onClick={() => setActiveItem(item)}>
+                  <Icon size={18} strokeWidth={1.6} aria-hidden="true" />
+                  <span>{menuLabels[item]}</span>
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      )}
+
       <div className="scene-index" aria-hidden="true">
         <span>LW / 001</span>
         <i />
         <span>EST. 2026</span>
       </div>
 
-      <div className="toolbar">
+      <div className="toolbar" inert={menuOpen}>
         <button
           className="icon-control"
           type="button"
@@ -314,7 +359,7 @@ export function Overlay({
       </div>
 
       {panel && activeItem && PanelIcon && (
-        <aside className="content-panel" aria-live="polite">
+        <aside className="content-panel" aria-labelledby="chapter-title" inert={menuOpen}>
           <div className="panel-head">
             <span className="panel-index">{panel.index} / {panel.object}</span>
             <button
@@ -331,7 +376,7 @@ export function Overlay({
             <PanelIcon size={29} strokeWidth={1.35} />
           </div>
           <p className="panel-eyebrow">{panel.eyebrow}</p>
-          <h1>{panel.title}</h1>
+          <h1 ref={panelTitleRef} id="chapter-title" tabIndex={-1}>{panel.title}</h1>
           <p className="panel-description">{panel.description}</p>
           <div className="panel-meta">{panel.meta}</div>
           <a className="panel-action" href={panel.href}>
