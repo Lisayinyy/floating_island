@@ -1,0 +1,7 @@
+{
+  "schema": "game-room.milestone-reviews.v1",
+  "roomId": "lisa-project-archipelago",
+  "function": {"status": "pending", "approvedBy": "", "approvedAt": "", "evidence": ["custom-contract.md"], "strangestElement": "No walkable connection: visitors move a camera between floating islands.", "notes": "User requested this direction, but no formal floor-plan/contact-sheet approval has occurred."},
+  "form": {"status": "pending", "approvedBy": "", "approvedAt": "", "evidence": ["../../qa/archipelago/3d-desktop-overview.png"], "strangestElement": "Tiny themed project props on solid faceted platforms, not architectural-scale buildings.", "notes": "Procedural prototype only. Outdoor exception documented; no final mesh export."},
+  "runtime": {"status": "pending", "approvedBy": "", "approvedAt": "", "evidence": ["../../qa/archipelago/3d-claw-detail.png", "../../qa/archipelago/3d-mobile-about.png"], "strangestElement": "Phone switches to a separate camera viewport above its details sheet.", "notes": "Browser interactions checked, formal human approval and performance certification pending."}
+}

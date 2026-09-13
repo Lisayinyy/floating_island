@@ -4,18 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lisa World | A floating inner world</title>
+    <title>Lisa’s Islands | An explorable project archipelago</title>
     <meta
       name="description"
-      content="A floating island holding Lisa's work, interests and memories. Every object opens a chapter."
+      content="Explore Lisa’s growing 3D archipelago. Every island is a project, from AI tools to playful games."
     />
     <meta name="theme-color" content="#f3eef0" />
 
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Lisa World | A floating inner world" />
+    <meta property="og:title" content="Lisa’s Islands | An explorable project archipelago" />
     <meta
       property="og:description"
-      content="A floating island holding Lisa's work, interests and memories. Every object opens a chapter."
+      content="Explore Lisa’s growing 3D archipelago. Every island is a project, from AI tools to playful games."
     />
     <meta property="og:url" content="https://lisayinyy.github.io/floating_island/" />
     <meta
@@ -75,16 +75,6 @@
       }
     </style>
 
-    <script>
-      // Runs before the first paint so a remembered night mode never flashes
-      // the day gradient. worldStore reads this attribute back.
-      try {
-        var stored = window.localStorage.getItem('lisa-world:theme')
-        document.documentElement.dataset.theme = stored === 'night' ? 'night' : 'day'
-      } catch (error) {
-        document.documentElement.dataset.theme = 'day'
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>

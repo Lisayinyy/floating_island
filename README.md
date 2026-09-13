@@ -1,77 +1,45 @@
-# Lisa World
+# Lisa’s Islands
 
-An interactive personal room built with React, Three.js and React Three Fiber.
-Every object on the floating island opens a chapter.
+An explorable 3D project archipelago built with React, React Three Fiber and Three.js.
 
 Live: https://lisayinyy.github.io/floating_island/
+
+The app is fully disconnected from the old room, the illustrated map and the legacy personal site: no Inner World, no `Lisa_web` navigation. Everything a visitor needs (projects, about, experience, résumé links) lives here.
+
+## Layout
+
+- **00 · pink island**: About and Experience. The experience tab is a real timeline (University of Michigan → AI4ALL → GlobeZ → Deloitte → MiraclePlus / ZhenFund → MiniMax), with résumé, LinkedIn and GitHub links.
+- **Inner ring, 01–06**: featured projects, each with a hand-built themed model (Voice Prompt, prompt.ai, Claw Cove, Alpine Rush, Ink Translate, Lisa Trading).
+- **Outer ring, 07+**: the archipelago. Smaller islands whose model comes from the project category (arcade for interactive, desk for AI products, easel for creative AI, chart board for finance & research). Currently 17 projects pulled from GitHub, so a new one only needs a data entry.
+
+Drag to orbit, scroll/pinch to zoom, click a model or label to fly closer. "All islands" resets the camera. The project index is a filterable native dialog and works without WebGL. Outer-ring labels hide when the camera is far (phone overview) and return as you zoom in.
 
 ## Development
 
 ```bash
 npm install
-npm run dev
+npm run dev      # http://localhost:4812 if you pass --port 4812
+npm run build    # tsc -b && vite build
+npm run lint     # oxlint
+node --experimental-strip-types qa/sculpture-check.mjs
 ```
 
-## Structure
+- `src/data/projects.ts`: every project. `featured` decides the ring; `cover` is optional (archive entries without a real screenshot get a category tile); `liveUrl` is only set when the public page was verified to load; `status` is `Live | Beta | Project | In development`.
+- `src/data/journey.ts`: career timeline and profile links.
+- `src/interface/IslandPortfolio.tsx`: navigation, detail panel, project index.
+- `src/scene/ProjectIslands.tsx`: ring placement, camera, ocean, routes and clouds.
+- `src/scene/IslandSculptures.ts`: deterministic vertex-colour sculpture builder. One merged mesh per island; featured islands have slug-keyed models, archive islands use `categoryIsland`.
+- `public/projects/`: real covers. The five `Live` archive covers are screenshots of the deployed GitHub Pages builds.
+- `qa/sculpture-check.mjs`: geometry check for all islands (finite, deterministic, rock base, per-island and total triangle budget).
 
-```text
-src/
-├── interface/   HTML interface layered above the 3D canvas
-├── scene/       Room, camera controls and interactive objects
-├── store/       Shared world interaction state
-└── App.tsx      Canvas and application shell
-qa/              Browser checks and the share card generator
-```
+### Adding a project
 
-The current room uses lightweight geometry as an interaction prototype. Replace
-individual objects with optimized GLB assets as the visual direction develops.
+1. Add an entry to `src/data/projects.ts` (set `featured: false` for the outer ring).
+2. Optional: drop a real screenshot into `public/projects/` and set `cover`.
+3. Optional: give it its own model in `buildIsland` and set `featured: true`.
 
-## Design notes
+Island positions, numbering, the index and the count in the footer all derive from the data. GitHub is not synced automatically: only reviewed projects with a readable README and a clear public status go in.
 
-- **Chapters are visible before the menu opens.** The bottom navigation uses the
-  same six chapters as the room objects, with horizontal scrolling on phones.
-  Chapter headings receive keyboard focus; Escape restores it to navigation.
-- **Reduced motion includes the scene.** The island, object hover, fire and
-  particles respect the operating system preference, including live changes.
-- **Dragging is not selecting.** Pointer travel filters accidental chapter
-  clicks, and manual orbit controls interrupt a camera flight cleanly.
+## Verification
 
-- **Chapter framing is derived, not hand-placed on phones.** The panel owns the
-  bottom of a small screen, so the orbit target is shifted along the camera's own
-  screen-up axis by a fraction of the view height. Shifting along world Y instead
-  gets compressed differently for every chapter, because each is viewed from a
-  different elevation.
-- **A label is interface, not scenery.** No `distanceFactor`, so it keeps one
-  readable size however far the camera is, and it stays up while its chapter is
-  open — which is the only way a touch device ever sees it.
-- **The lamp's two jobs are two lights.** A shadowed point light is a cube shadow
-  map: six full-scene passes every frame. An unshadowed point light for the glow
-  plus one downward shadowed spot light keeps the look for one pass.
-- **Fonts are self-hosted and declared in `index.html`.** A pending
-  `<link rel=stylesheet>` — or worse, an `@import` inside CSS — delays the page's
-  own scripts. Measured here: DOMContentLoaded 290ms → 41ms. Vite also cannot
-  rewrite `public/` URLs found inside bundled CSS when `base` is `'./'`.
-- **The theme is written before the first paint.** An inline bootstrap in
-  `index.html` sets `data-theme`, which the store reads back, so a remembered
-  night mode never flashes the day gradient.
-
-## Checks
-
-```bash
-npm run build
-../.venv-playwright/bin/python qa/verify.py qa/shots 4801
-```
-
-57 assertions across desktop and mobile: menu order, chapter framing measured
-against the panel's real rectangle, panel paint, Escape, theme persistence
-across a reload, and no third-party requests. The scene publishes
-`window.__LW_FLIGHT__` (`{flying, count}`) and `window.__LW_AT__(id)` so the
-checks can wait for a real flight to land and ask where an object actually
-ended up, instead of sleeping and guessing.
-
-```bash
-../.venv-playwright/bin/python qa/share_card.py 4811
-```
-
-Regenerates `public/share-card.png` from the live scene and prints the first
-paint timings.
+See `design-qa.md` for the latest browser checks and known limits. `qa/archipelago/` holds the screenshots from that pass.

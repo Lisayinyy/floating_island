@@ -1,0 +1,16 @@
+{
+  "schema": "game-room.room-brief.v1",
+  "roomId": "lisa-project-archipelago",
+  "family": "custom",
+  "purpose": "Independent explorable 3D project portfolio; one project per themed island and one pink personal island.",
+  "runtimeSurface": "React Three Fiber browser prototype at http://127.0.0.1:4812/",
+  "boundsMeters": [30, 12, 30],
+  "hero": {"id": "about", "role": "Pink personal island, blossom tree and bench", "reservedBoundsMeters": [6.2, 7, 6.2]},
+  "symmetry": {"mode": "none", "order": 1, "appliesTo": [], "exceptions": []},
+  "circulation": {"description": "Camera orbit/pan/zoom only; no walking avatar or physical bridges. See custom-contract.md.", "minimumClearanceMeters": 3.84},
+  "productionCamera": {"viewport": [1440, 1024], "location": [19, 23, 29], "target": [0, 0, 0], "verticalFovDegrees": 39},
+  "performanceBudget": {"maxSceneTriangles": 150000, "maxVLowBytes": 0, "maxHighTextureBytes": 0},
+  "creditBudget": {"maximumCredits": 0, "approvalRequired": true},
+  "environment": {"type": "none", "identity": "", "source": "", "assignmentKey": ""},
+  "artifacts": {"floorPlan": "", "reflectedCeilingPlan": "", "planMetadata": "plan-metadata.json", "wallElevations": [], "visualTarget": "", "openingContactSheet": ""}
+}

@@ -1,0 +1,14 @@
+{
+  "schema": "game-room.prop-manifest.v1",
+  "roomId": "lisa-project-archipelago",
+  "generation": {
+    "provider": "local-procedural-no-paid-generation",
+    "apiModel": "not-applicable",
+    "pricingSource": "not-applicable-zero-credits",
+    "pricingVerifiedAt": "",
+    "creditsPerTexturedTask": 15,
+    "hardCreditCeiling": 0,
+    "maxChargedAttemptsPerAsset": 2
+  },
+  "assets": []
+}
