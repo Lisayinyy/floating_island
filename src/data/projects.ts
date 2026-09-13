@@ -1,36 +1,82 @@
-export type ProjectCategory = 'ai-products' | 'interactive' | 'creative-ai' | 'finance-research'
+export type IslandId = 'ai-toolkits' | '3d-games' | 'fintech' | 'taste' | 'data-science'
 
-export type ProjectStatus = 'Live' | 'Beta' | 'Project' | 'In development'
+export type ProjectStatus = 'Live' | 'Beta' | 'Project' | 'In development' | 'Internal' | 'Design'
+
+export type Island = {
+  id: IslandId
+  title: string
+  /** Label on the 3D island. */
+  shortTitle: string
+  kicker: string
+  tagline: string
+  intro: string
+}
 
 export type Project = {
   slug: string
   title: string
   kicker: string
   shortDescription: string
-  problem: string
-  build: string
-  outcome: string
-  category: ProjectCategory
+  problem?: string
+  build?: string
+  outcome?: string
+  island: IslandId
   status: ProjectStatus
-  /** Featured islands sit on the inner ring and have a hand-built model. */
-  featured: boolean
-  /** Real screenshot or artwork. Archive entries without one get a category tile. */
+  /** Real screenshot or artwork. Entries without one get an island-coloured tile. */
   cover?: string
-  repoUrl: string
+  repoUrl?: string
   /** Only set when the public URL was verified to load. */
   liveUrl?: string
   tags: string[]
 }
 
-export const categoryLabels: Record<ProjectCategory, string> = {
-  'ai-products': 'AI Products',
-  interactive: 'Interactive & 3D',
-  'creative-ai': 'Creative AI',
-  'finance-research': 'Finance & Research',
-}
+// One island per family of work. Order here is the ring order in the scene.
+export const islands: Island[] = [
+  {
+    id: 'ai-toolkits',
+    title: 'AI Toolkits',
+    shortTitle: 'AI Toolkits',
+    kicker: 'AGENTS · EXTENSIONS · SKILLS',
+    tagline: 'Tools that make AI easier to start, steer and trust.',
+    intro: 'Voice input, prompt launchers, agent skills and small products built to remove friction between an idea and a working AI workflow.',
+  },
+  {
+    id: '3d-games',
+    title: '3D & Games',
+    shortTitle: '3D & Games',
+    kicker: 'WEBGL · THREE.JS · PLAY',
+    tagline: 'Worlds you can move through in a browser.',
+    intro: 'Browser games and explorable 3D scenes, mobile-first where it matters, built with Three.js, WebGL and procedural modelling.',
+  },
+  {
+    id: 'fintech',
+    title: 'Fintech',
+    shortTitle: 'Fintech',
+    kicker: 'MARKETS · RESEARCH · AGENTS',
+    tagline: 'Research systems for markets, with AI in the loop.',
+    intro: 'Quant research platforms, pre-market scanners, agent skills and investor graphs. Research and simulation first; nothing here promises returns.',
+  },
+  {
+    id: 'taste',
+    title: 'Taste',
+    shortTitle: 'Taste',
+    kicker: 'CULTURE · DESIGN · CREATIVE AI',
+    tagline: 'Where craft, culture and design meet generative tools.',
+    intro: 'Ink painting, heritage letters, fashion, reading and UX design: projects about how things look and feel.',
+  },
+  {
+    id: 'data-science',
+    title: 'Data Science',
+    shortTitle: 'Data Science',
+    kicker: 'ML · COMPUTER VISION · NLP',
+    tagline: 'The foundations: models trained and evaluated by hand.',
+    intro: 'Classic machine-learning and deep-learning work from the University of Michigan years: detection, classification, clustering and sentiment.',
+  },
+]
+
+export const islandById = Object.fromEntries(islands.map((island) => [island.id, island])) as Record<IslandId, Island>
 
 export const projects: Project[] = [
-  // Featured islands: each has its own themed model in IslandSculptures.
   {
     slug: 'voice-prompt',
     title: 'Voice Prompt',
@@ -39,9 +85,8 @@ export const projects: Project[] = [
     problem: 'Spoken ideas are fast and natural, but they often arrive fragmented before they become useful instructions.',
     build: 'A voice-first desktop workflow with local speech recognition, live preview, AI refinement, and a review-before-send handoff.',
     outcome: 'An input experience that keeps the original intent while making long, conversational thoughts easier to act on.',
-    category: 'ai-products',
+    island: 'ai-toolkits',
     status: 'Beta',
-    featured: true,
     cover: './projects/voice-prompt.jpg',
     repoUrl: 'https://github.com/Lisayinyy/VoicePrompt',
     liveUrl: 'https://lisayinyy.github.io/VoicePrompt/',
@@ -51,16 +96,16 @@ export const projects: Project[] = [
     slug: 'prompt-ai',
     title: 'prompt.ai',
     kicker: 'AI TASK LAUNCHER',
-    shortDescription: 'Structure rough intent, recommend a model, and launch the task into AI chat.',
+    shortDescription: 'Type a rough idea, get a professional prompt, fill it into 15+ AI platforms in one click.',
     problem: 'People know what they want to accomplish, but starting from a blank AI chat makes the path to a useful task unnecessarily hard.',
-    build: 'A Chrome extension for task templates, prompt structuring, model recommendations, one-click launch, and reusable history.',
+    build: 'A Chrome extension (React 18 + TypeScript, Cloudflare Worker, Supabase, MiniMax M2.7) that rewrites rough intent into a structured prompt, recommends a model and launches into ChatGPT, Claude, Kimi, DeepSeek and more. Live on the Chrome Web Store.',
     outcome: 'A product direction that moves beyond prompt polishing toward helping people begin and route real work.',
-    category: 'ai-products',
-    status: 'Project',
-    featured: true,
+    island: 'ai-toolkits',
+    status: 'Live',
     cover: './projects/prompt-ai.png',
     repoUrl: 'https://github.com/Lisayinyy/prompt.ai',
-    tags: ['Chrome extension', 'Product strategy', 'TypeScript'],
+    liveUrl: 'https://prompt-ai.work',
+    tags: ['Chrome extension', 'React + TS', 'Cloudflare Worker'],
   },
   {
     slug: 'claw-cove',
@@ -70,9 +115,8 @@ export const projects: Project[] = [
     problem: 'Most web claw-machine demos feel like desktop tech samples rather than small games designed to be enjoyed on a phone.',
     build: 'A mobile-first 3D machine with direct touch controls, three camera views, twelve original toys, unlockable themes, offline play, and save migration.',
     outcome: 'A complete browser game loop built around collecting, learning the machine, and returning to a saved personal cabinet.',
-    category: 'interactive',
+    island: '3d-games',
     status: 'Project',
-    featured: true,
     cover: './projects/claw-cove.png',
     repoUrl: 'https://github.com/Lisayinyy/claw-cove',
     tags: ['Three.js', 'PWA', 'Mobile'],
@@ -85,9 +129,8 @@ export const projects: Project[] = [
     problem: 'Fast 3D browser games often hide essential controls behind keyboard conventions that do not translate to mobile.',
     build: 'Six mountain routes with on-screen carving, braking, jumping, tucking, aerial rotation, gates, hazards, and route guidance.',
     outcome: 'A skiing experience whose primary controls stay visible and playable across desktop and phone layouts.',
-    category: 'interactive',
+    island: '3d-games',
     status: 'Project',
-    featured: true,
     cover: './projects/alpine-rush.png',
     repoUrl: 'https://github.com/Lisayinyy/ski_game',
     tags: ['WebGL', 'Game design', 'Touch controls'],
@@ -100,9 +143,8 @@ export const projects: Project[] = [
     problem: 'Style filters tend to place a texture on top of a photo without understanding the composition or the visual logic of ink painting.',
     build: 'A guided image workflow that treats the photo as composition, then reconstructs white space, ink lines, dark roofs, and clustered color accents.',
     outcome: 'A repeatable creative skill with side-by-side examples that make the transformation rules visible and inspectable.',
-    category: 'creative-ai',
+    island: 'taste',
     status: 'Project',
-    featured: true,
     cover: './projects/wgz-painting.jpg',
     repoUrl: 'https://github.com/Lisayinyy/wgz_painting',
     tags: ['Image generation', 'Prompt design', 'Art direction'],
@@ -115,15 +157,12 @@ export const projects: Project[] = [
     problem: 'Research decisions become hard to audit when market data, backtests, execution notes, and later reflection live in disconnected tools.',
     build: 'A modular platform spanning cached market data, strategy and backtest services, guarded simulation, trade journals, and read-only AI review.',
     outcome: 'A research environment that keeps testing, simulation, and real-money execution as explicit separate boundaries.',
-    category: 'finance-research',
+    island: 'fintech',
     status: 'In development',
-    featured: true,
     cover: './projects/lisa-trading.png',
     repoUrl: 'https://github.com/Lisayinyy/lisa-trading',
     tags: ['Research', 'Backtesting', 'AI review'],
   },
-
-  // Archipelago: the outer ring. Models come from the category, covers are real screenshots when a public build exists.
   {
     slug: 'temple',
     title: 'Forbidden City · Voxel 3D',
@@ -132,9 +171,8 @@ export const projects: Project[] = [
     problem: 'Heritage architecture is usually shown as flat photos; the layout of the central palace complex is hard to feel without moving through it.',
     build: 'A single-file Three.js scene of the Hall of Supreme Harmony, the Nine-Dragon Wall, corner towers and a red-walled courtyard, with four preset camera flights, day and night lighting, falling snow, a bilingual interface and one-click video capture.',
     outcome: 'About 20,000 voxels of palace that run in the browser with no build step.',
-    category: 'interactive',
+    island: '3d-games',
     status: 'Live',
-    featured: false,
     cover: './projects/temple.jpg',
     repoUrl: 'https://github.com/Lisayinyy/temple',
     liveUrl: 'https://lisayinyy.github.io/temple/',
@@ -148,9 +186,8 @@ export const projects: Project[] = [
     problem: 'Historical overseas-Chinese letters read as dense text; a wall of them loses the intimacy of each note.',
     build: 'A cylindrical spiral gallery in Three.js: canvas-drawn letter textures with paper grain and red seals, falling kapok petals, a starfield, and click-to-read full letters.',
     outcome: 'A quiet, explorable archive of the twenty letters from the film.',
-    category: 'interactive',
+    island: '3d-games',
     status: 'Live',
-    featured: false,
     cover: './projects/3d-letter-gallery.jpg',
     repoUrl: 'https://github.com/Lisayinyy/3d-letter-gallery',
     liveUrl: 'https://lisayinyy.github.io/3d-letter-gallery/',
@@ -164,9 +201,8 @@ export const projects: Project[] = [
     problem: 'Reading research in a browser tab is bright, cluttered, and easy to abandon.',
     build: 'A Vite + React reading room: a warm, moving cone of light reveals the focused paper over a dim but always-readable shelf of papers, with notes and saved insights. The atmosphere is a lightweight canvas layer, so the paper stays usable without WebGL or with reduced motion.',
     outcome: 'Reading feels like sitting under a lamp, and the room degrades gracefully on any device.',
-    category: 'interactive',
+    island: 'taste',
     status: 'Live',
-    featured: false,
     cover: './projects/reading-case.jpg',
     repoUrl: 'https://github.com/Lisayinyy/reading_case',
     liveUrl: 'https://lisayinyy.github.io/reading_case/',
@@ -180,9 +216,8 @@ export const projects: Project[] = [
     problem: 'Real-time body effects usually need textures, uploads, or a native app.',
     build: 'One WebGL2 fragment shader composites the camera feed, a MediaPipe segmentation mask, and hand and face landmarks: pinch to suit up, frame a window with both hands to transform only what is inside. Mask eyes, web lines and the chest emblem are procedural signed-distance fields, and every model runs locally.',
     outcome: 'Zero assets, zero uploads, and it keeps working offline.',
-    category: 'interactive',
+    island: '3d-games',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/spider',
     tags: ['WebGL2', 'MediaPipe', 'Shaders'],
   },
@@ -194,9 +229,8 @@ export const projects: Project[] = [
     problem: 'Bazi readings are text-heavy and hard to compare across a lifetime.',
     build: 'Enter your four pillars and starting luck cycle; the app derives the sequence of ten-year cycles and renders a hundred-year K-line chart with an AI-written reading.',
     outcome: 'A playful visual metaphor that makes a folk tradition legible, explicitly for entertainment rather than prediction.',
-    category: 'creative-ai',
+    island: 'taste',
     status: 'Live',
-    featured: false,
     cover: './projects/lifekline.jpg',
     repoUrl: 'https://github.com/Lisayinyy/lifekline',
     liveUrl: 'https://lisayinyy.github.io/lifekline/',
@@ -210,9 +244,8 @@ export const projects: Project[] = [
     problem: 'Qiaopi, the remittance letters on UNESCO’s Memory of the World register, have a voice that is hard to imitate.',
     build: 'A generator with three paper styles, six scene templates, in-place editing and PNG export. A built-in rule-based writer works offline, and any OpenAI-compatible API can take over for richer text.',
     outcome: 'Anyone can write a period-correct letter home in a minute.',
-    category: 'creative-ai',
+    island: 'taste',
     status: 'Live',
-    featured: false,
     cover: './projects/qiaopi-creator.jpg',
     repoUrl: 'https://github.com/Lisayinyy/qiaopi_creator',
     liveUrl: 'https://lisayinyy.github.io/qiaopi_creator/',
@@ -226,9 +259,8 @@ export const projects: Project[] = [
     problem: 'Turning a single illustration into a navigable 3D scene usually means modelling everything by hand.',
     build: 'An img2threejs workflow: a procedural character with bucket hat, plush hood, overalls and basket, animated butterflies, grass, flowers and a foreground canopy, with orbit controls and camera presets.',
     outcome: 'A fully procedural scene with no external assets, shown next to the reference image for comparison.',
-    category: 'creative-ai',
+    island: '3d-games',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/laBUBU',
     tags: ['Three.js', 'Procedural', 'Image to scene'],
   },
@@ -240,9 +272,8 @@ export const projects: Project[] = [
     problem: 'Most video tools optimise for editing timelines, not for pulling the gold quotes out of a talk.',
     build: 'Upload, transcribe, pick the quotes, auto-paginate them into low-density pages, match video frames, and export image-first cards and carousels for Xiaohongshu-style posts.',
     outcome: 'A focused MVP for one workflow rather than a generic editor.',
-    category: 'ai-products',
+    island: 'ai-toolkits',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/video-quote-cards',
     tags: ['Transcription', 'Content design', 'MVP'],
   },
@@ -254,9 +285,8 @@ export const projects: Project[] = [
     problem: 'Meeting-note tools assume a video call; offline meetings, client visits and lectures are left with raw recordings.',
     build: 'A PWA that records in the browser, transcribes through OpenAI-compatible APIs, and generates minutes from custom templates. Open source and self-hostable.',
     outcome: 'No app install and no meeting-platform lock-in.',
-    category: 'ai-products',
+    island: 'ai-toolkits',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/voice_meeting',
     tags: ['PWA', 'Speech-to-text', 'Self-hosted'],
   },
@@ -268,9 +298,8 @@ export const projects: Project[] = [
     problem: 'Switching between Claude Code, Codex and Cursor, or running out of quota, drops the context of what you were doing and what already failed.',
     build: 'A SwiftBar plugin that scans Claude Code sessions, clusters them into tasks with a small model, writes task cards (goal, progress, decisions, dead ends, next step) and copies an injection prompt to the clipboard.',
     outcome: 'Pick up any task in any tool without re-explaining it.',
-    category: 'ai-products',
+    island: 'ai-toolkits',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/Threadly',
     tags: ['macOS', 'Agent workflow', 'Proof of concept'],
   },
@@ -282,10 +311,10 @@ export const projects: Project[] = [
     problem: 'Community monitoring means reading every post by hand and writing replies that do not sound like a bot.',
     build: 'An OpenClaw skill: search, scrape post details, filter, then a three-stage comment pipeline (style learning, two de-AI passes, eight quality checks) into a Feishu table, with a feedback loop that learns from reviewer edits. Published on ClawHub.',
     outcome: 'Industry-agnostic monitoring by editing one config file.',
-    category: 'ai-products',
-    status: 'Project',
-    featured: false,
+    island: 'ai-toolkits',
+    status: 'Live',
     repoUrl: 'https://github.com/Lisayinyy/xiaohongshu-public-monitor',
+    liveUrl: 'https://clawhub.ai/lisayinyy/xiaohongshu-public-monitor',
     tags: ['OpenClaw', 'Browser automation', 'Feishu'],
   },
   {
@@ -296,9 +325,8 @@ export const projects: Project[] = [
     problem: 'Deciding which sectors to watch before the open takes a lot of manual screening.',
     build: 'Scores hot sectors from prior-day gain, volume ratio, five-day gain and breadth, dedupes nested concepts, and names four representative stocks per sector: leader, technical setup, capital inflow and large cap. Runs in about ten seconds with a single dependency.',
     outcome: 'Say “pre-market scan” to Claude Code or any agent CLI and get a markdown or JSON report.',
-    category: 'finance-research',
+    island: 'fintech',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/a-share-premarket-skill',
     tags: ['Python', 'Claude Code skill', 'Market data'],
   },
@@ -310,9 +338,8 @@ export const projects: Project[] = [
     problem: 'Quick pre-market decisions need a lot of separately fetched data.',
     build: 'A 0–100 composite score (technical 40%, capital 30%, news 20%, valuation 10%) built from twenty-plus indicators, main, northbound and margin flows, announcement sentiment and valuation percentiles, rendered as an HTML report from MiniMax Finance MCP data.',
     outcome: 'One command, one page, one sentence of guidance.',
-    category: 'finance-research',
+    island: 'fintech',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/a-stock-quick-scan',
     tags: ['Python', 'MCP', 'Technical analysis'],
   },
@@ -324,9 +351,8 @@ export const projects: Project[] = [
     problem: 'Models look unreliable when inputs like “the trend looks clean” carry no window, threshold or confirmation rule.',
     build: 'A Claude Code skill that detects fuzzy terms, translates them against verified dictionaries (Bulkowski, Wilder, TA-Lib, A-share limit-up slang), grades confidence, asks the user to settle ambiguities, and assembles a usable prompt.',
     outcome: 'Strategy specs and labelling instructions that read the same to a human and a model.',
-    category: 'finance-research',
+    island: 'fintech',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/quant-jargon-compiler',
     tags: ['Claude Code skill', 'Prompt design', 'Trading'],
   },
@@ -338,9 +364,8 @@ export const projects: Project[] = [
     problem: 'Funding news is scattered, so investor overlap across the leading model labs is hard to see.',
     build: 'An interactive ECharts force graph of twelve model companies, 150+ investors and key general partners, joining registry shareholdings with public rounds, all embedded in one HTML file.',
     outcome: 'One page that answers “who backs whom” for the Chinese LLM landscape.',
-    category: 'finance-research',
+    island: 'fintech',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/vc_llm',
     tags: ['ECharts', 'Data research', 'Venture capital'],
   },
@@ -352,9 +377,8 @@ export const projects: Project[] = [
     problem: 'Good research frameworks live in browser plugins or SaaS, out of reach of coding agents.',
     build: 'A Python package that ports five research skills plus a data layer: give it a US ticker and it builds a clean snapshot that Claude Code, Codex, Cursor or a plain script can reason over.',
     outcome: 'Research skills as importable code instead of a subscription.',
-    category: 'finance-research',
+    island: 'fintech',
     status: 'Project',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/serenity-skill',
     tags: ['Python', 'Agent skills', 'Equity research'],
   },
@@ -366,13 +390,139 @@ export const projects: Project[] = [
     problem: 'Tracking positions, ideas and advice across apps leaves no single place to talk through a portfolio.',
     build: 'A Vite + TypeScript mobile web app built from a Figma design, wired to a backend with mock, OpenAI-compatible and MCP-bridge providers for market summaries, advice and agent chat.',
     outcome: 'A working end-to-end prototype, still in active development.',
-    category: 'finance-research',
+    island: 'fintech',
     status: 'In development',
-    featured: false,
     repoUrl: 'https://github.com/Lisayinyy/MonkeyAI',
     tags: ['React', 'Multi-agent', 'Figma to code'],
   },
+  {
+    slug: 'skills-master',
+    title: 'Skills Master',
+    kicker: 'AI AGENT STORE',
+    shortDescription: '178 curated agent skills across 8 scenarios, with smart recommendations and one-click install.',
+    problem: 'Agent skills are scattered across repos and registries, so most people never find the one that would unlock their workflow.',
+    build: 'A Next.js store for OpenClaw skills: curated into eight scenarios, recommended by need, installed in one click.',
+    outcome: 'Anyone can add new abilities to their AI agent without reading a README.',
+    island: 'ai-toolkits',
+    status: 'Live',
+    liveUrl: 'https://skills-master.space',
+    tags: ['OpenClaw skills', 'Next.js', 'Vibe coded'],
+  },
+  {
+    slug: 'web-summary-assistant',
+    title: 'Web Summary Assistant',
+    kicker: 'AI BROWSER EXTENSION',
+    shortDescription: 'A browser extension that summarises the page you are on for faster reading and research.',
+    island: 'ai-toolkits',
+    status: 'Project',
+    cover: './projects/zf.jpg',
+    tags: ['JavaScript', 'Chrome extension', 'AI integration'],
+  },
+  {
+    slug: 'vibe-ai',
+    title: 'vibe.ai',
+    kicker: 'AI LEARNING HUB',
+    shortDescription: 'A curated resource hub for AI beginners: tools, tutorials, case studies and best practices for vibe coding.',
+    island: 'ai-toolkits',
+    status: 'Project',
+    repoUrl: 'https://github.com/Lisayinyy/vibe.ai',
+    tags: ['Resource hub', 'Next.js', 'Vibe coding'],
+  },
+  {
+    slug: 'influencer-management',
+    title: 'Influencer Management System',
+    kicker: 'MINIMAX INTERNAL · GROWTH',
+    shortDescription: 'An internal KOL outreach tool for MiniMax’s product growth team that speeds up day-to-day creator operations.',
+    outcome: 'Specifics are confidential; happy to talk it through in person.',
+    island: 'ai-toolkits',
+    status: 'Internal',
+    tags: ['Internal tool', 'Growth', 'Vibe coded'],
+  },
+  {
+    slug: 'lisas-islands',
+    title: 'Lisa’s Islands',
+    kicker: 'THIS SITE',
+    shortDescription: 'The explorable archipelago you are looking at: one procedurally sculpted island per family of work.',
+    problem: 'A flat portfolio page lists projects; it does not give a sense of the person or the range of the work.',
+    build: 'React Three Fiber, a deterministic vertex-colour sculpture builder that merges every island into one mesh, orbit and fly-to camera, and a non-3D project index for keyboards and phones.',
+    outcome: 'A portfolio that is itself a project, and grows by editing one data file.',
+    island: '3d-games',
+    status: 'Live',
+    repoUrl: 'https://github.com/Lisayinyy/floating_island',
+    liveUrl: 'https://lisayinyy.github.io/floating_island/',
+    tags: ['React Three Fiber', 'Procedural modelling', 'Portfolio'],
+  },
+  {
+    slug: 'xiaoju-wardrobe',
+    title: 'Xiaoju’s Wardrobe · 小橘的衣橱',
+    kicker: 'WECHAT MINI PROGRAM',
+    shortDescription: 'A fashion micro-shop mini program: owner picks, outfit stories and low-friction ordering, built as a teaching case.',
+    problem: 'Small fashion sellers on WeChat need recommendation and outfit storytelling more than a feature-heavy mall.',
+    build: 'A native WeChat mini program with six pages: home with today’s look, outfit detail by scene (commute, relaxed, date), product detail with colour and size, shopping bag, member centre with levels and style profile, and sharing. Written as a step-by-step MCode tutorial with prompts and acceptance checks per stage.',
+    outcome: 'Swap the assets and product list and the skeleton becomes a real shop.',
+    island: 'taste',
+    status: 'Project',
+    cover: './projects/xiaoju-wardrobe.jpg',
+    tags: ['WeChat mini program', 'Fashion', 'Tutorial'],
+  },
+  {
+    slug: 'milastbite',
+    title: 'MiLastBite App Design',
+    kicker: 'UI / UX DESIGN',
+    shortDescription: 'Full mobile UX for a food-waste reduction platform: research, wireframes and an interactive prototype.',
+    island: 'taste',
+    status: 'Design',
+    cover: './projects/pj1.png',
+    liveUrl: 'https://www.canva.com/design/DAFlLnW_iss/8NDzoE5FjH1zmATnKrT5BQ/view',
+    tags: ['User research', 'Prototyping', 'Mobile design'],
+  },
+  {
+    slug: 'blick-accessibility',
+    title: 'BLICK Web Accessibility',
+    kicker: 'UX RESEARCH',
+    shortDescription: 'Accessibility audit and redesign for an e-commerce art-supply site, making it usable for everyone.',
+    island: 'taste',
+    status: 'Design',
+    cover: './projects/pj2.png',
+    liveUrl: 'https://www.canva.com/design/DAFw-v_N2Qc/kLQM318VIfWo3T5SCgiIOQ/view',
+    tags: ['Accessibility', 'UX research', 'Web design'],
+  },
+  {
+    slug: 'collision-warning',
+    title: 'Collision Warning System',
+    kicker: 'COMPUTER VISION',
+    shortDescription: 'Real-time vehicle detection with YOLO for collision prevention in autonomous driving.',
+    island: 'data-science',
+    status: 'Project',
+    cover: './projects/yolo.jpg',
+    tags: ['YOLO', 'Computer vision', 'Python'],
+  },
+  {
+    slug: 'sentiment-svm',
+    title: 'Sentiment Analysis · SVM',
+    kicker: 'NLP',
+    shortDescription: 'An SVM text-sentiment classifier evaluated across multiple emotional categories.',
+    island: 'data-science',
+    status: 'Project',
+    tags: ['Python', 'SVM', 'scikit-learn'],
+  },
+  {
+    slug: 'cnn-classification',
+    title: 'CNN Classification System',
+    kicker: 'DEEP LEARNING',
+    shortDescription: 'Convolutional neural networks for image classification with modern training techniques.',
+    island: 'data-science',
+    status: 'Project',
+    repoUrl: 'https://github.com/Lisayinyy/DeepLearning_classification',
+    tags: ['PyTorch', 'CNN', 'Computer vision'],
+  },
+  {
+    slug: 'kmeans-clustering',
+    title: 'K-Means Clustering',
+    kicker: 'MACHINE LEARNING',
+    shortDescription: 'K-Means with K-Means++ initialisation, benchmarked against spectral clustering.',
+    island: 'data-science',
+    status: 'Project',
+    tags: ['Python', 'NumPy', 'Matplotlib'],
+  },
 ]
-
-export const featuredProjects = projects.filter((project) => project.featured)
-export const archiveProjects = projects.filter((project) => !project.featured)

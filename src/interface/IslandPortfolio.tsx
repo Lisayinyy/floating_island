@@ -2,8 +2,8 @@ import { Canvas } from '@react-three/fiber'
 import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { journey, profileLinks } from '../data/journey'
-import { categoryLabels, projects } from '../data/projects'
-import type { Project } from '../data/projects'
+import { islandById, islands, projects } from '../data/projects'
+import type { IslandId, Project } from '../data/projects'
 import './IslandPortfolio.css'
 
 const Islands = lazy(() => import('../scene/ProjectIslands'))
@@ -21,39 +21,50 @@ class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean
 function Cover({ project, compact = false }: { project: Project; compact?: boolean }) {
   const className = compact ? 'card-cover' : ''
   if (project.cover) {
-    return <img className={`island-cover ${className} ${project.slug === 'prompt-ai' ? 'icon-cover' : ''}`} src={project.cover} alt={compact ? '' : `${project.title} project preview`} />
+    return <img className={`island-cover ${className} ${project.slug === 'prompt-ai' ? 'icon-cover' : ''}`} src={project.cover} alt={compact ? '' : `${project.title} project preview`} loading="lazy" />
   }
   return (
-    <div className={`island-cover cover-tile tile-${project.category} ${className}`} role="img" aria-label={`${project.title}: ${categoryLabels[project.category]}`}>
-      {compact ? <span>{categoryLabels[project.category].toUpperCase()}</span> : <><span>{project.kicker}</span><strong>{project.title}</strong></>}
+    <div className={`island-cover cover-tile tile-${project.island} ${className}`} role="img" aria-label={`${project.title}: ${islandById[project.island].title}`}>
+      <span>{compact ? islandById[project.island].title.toUpperCase() : project.kicker}</span>
     </div>
   )
 }
+
+function ProjectLinks({ project }: { project: Project }) {
+  return <div className="project-links">
+    {project.liveUrl && <a className="live-link" href={project.liveUrl} target="_blank" rel="noreferrer">{project.status === 'Design' ? 'View design ↗' : 'Open live ↗'}</a>}
+    {project.repoUrl && <a href={project.repoUrl} target="_blank" rel="noreferrer">GitHub ↗</a>}
+  </div>
+}
+
 export default function IslandPortfolio() {
   const [selection, setSelection] = useState<string | null>(null)
+  const [openProject, setOpenProject] = useState<string | null>(null)
   const [reset, setReset] = useState(0)
   const [ready, setReady] = useState(false)
   const [archive, setArchive] = useState(false)
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState<IslandId | 'all'>('all')
   const [bioTab, setBioTab] = useState<'about' | 'experience'>('about')
   const dialog = useRef<HTMLDialogElement>(null)
   const readyScene = useCallback(() => setReady(true), [])
 
-  const projectIndex = projects.findIndex((p) => p.slug === selection)
-  const project = projectIndex >= 0 ? projects[projectIndex] : undefined
-  const overview = () => { setSelection(null); setReset((v) => v + 1) }
-  const select = (slug: string) => { setSelection(slug); setArchive(false) }
+  const islandIndex = islands.findIndex((island) => island.id === selection)
+  const island = islandIndex >= 0 ? islands[islandIndex] : undefined
+  const overview = () => { setSelection(null); setOpenProject(null); setReset((v) => v + 1) }
+  const select = (id: string, project: string | null = null) => { setSelection(id); setOpenProject(project); setArchive(false) }
   const openBio = (tab: 'about' | 'experience') => { setBioTab(tab); select('about') }
-  const nextProject = () => select(projects[(projectIndex + 1) % projects.length].slug)
 
   useEffect(() => { if (archive) dialog.current?.showModal(); else dialog.current?.close() }, [archive])
   useEffect(() => {
-    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !dialog.current?.open) setSelection(null) }
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !dialog.current?.open) { setSelection(null); setOpenProject(null) } }
     window.addEventListener('keydown', escape)
     return () => window.removeEventListener('keydown', escape)
   }, [])
+  useEffect(() => {
+    if (openProject) document.getElementById(`project-${openProject}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [openProject])
 
-  const visible = projects.filter((p) => filter === 'all' || p.category === filter)
+  const visible = projects.filter((p) => filter === 'all' || p.island === filter)
 
   return <main className={`islands-app ${selection ? 'has-selection' : ''}`}>
     <header className="island-nav">
@@ -70,10 +81,10 @@ export default function IslandPortfolio() {
     {!selection && <section className="island-intro">
       <p className="island-eyebrow">INDEPENDENT IDEAS. CONNECTED BY CURIOSITY.</p>
       <h1>A little world,<br />always <em>growing.</em></h1>
-      <p>Each island is something I’ve made.<br />Pick a place. See where curiosity takes you.</p>
+      <p>Five islands, one for each kind of thing I make.<br />Pick a place. See where curiosity takes you.</p>
     </section>}
 
-    <div className="island-scene" aria-label="Interactive 3D project archipelago. Drag to orbit, scroll or pinch to zoom. Select island labels to visit.">
+    <div className="island-scene" aria-label="Interactive 3D archipelago. Drag to orbit, scroll or pinch to zoom. Select island labels to visit.">
       <SceneBoundary>
         <Canvas shadows dpr={[1, 1.6]} camera={{ position: [24, 28, 35], fov: 39, near: 0.1, far: 250 }} gl={{ antialias: true, alpha: true }} fallback={<p className="scene-fallback">3D needs WebGL. All projects are available in the Projects menu.</p>}>
           <Suspense fallback={null}><Islands selection={selection} reset={reset} onSelect={select} onReady={readyScene} /></Suspense>
@@ -82,25 +93,42 @@ export default function IslandPortfolio() {
     </div>
     {!ready && <p className="scene-status" role="status">Preparing your islands… <button onClick={() => setArchive(true)}>Browse projects</button></p>}
 
-    {selection && <aside className="island-detail" key={selection} aria-label={project ? `${project.title} details` : 'About Lisa'}>
+    {selection && <aside className="island-detail" key={selection} aria-label={island ? `${island.title} projects` : 'About Lisa'}>
       <div className="detail-top">
-        <span>{project ? `${String(projectIndex + 1).padStart(2, '0')} / ${project.featured ? 'PROJECT ISLAND' : 'ARCHIPELAGO'}` : '00 / THE PINK ISLAND'}</span>
+        <span>{island ? `${String(islandIndex + 1).padStart(2, '0')} / ${island.title.toUpperCase()} ISLAND` : '00 / THE PINK ISLAND'}</span>
         <button aria-label="Close island details" onClick={overview}>×</button>
       </div>
-      {project ? <>
-        <p className="island-eyebrow">{project.kicker}</p>
-        <h2>{project.title}</h2>
-        <p className="detail-summary">{project.shortDescription}</p>
-        <Cover project={project} />
-        <div className="project-meta"><span>{categoryLabels[project.category]}</span><span className={`status-${project.status.replace(/\s+/g, '-').toLowerCase()}`}>{project.status}</span></div>
-        <section><h3>The idea</h3><p>{project.problem}</p></section>
-        <section><h3>What I built</h3><p>{project.build}</p></section>
-        <section><h3>The experience</h3><p>{project.outcome}</p></section>
-        <div className="island-tags">{project.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+      {island ? <>
+        <p className="island-eyebrow">{island.kicker}</p>
+        <h2>{island.title}</h2>
+        <p className="detail-summary">{island.tagline}</p>
+        <p className="island-intro-text">{island.intro}</p>
+        <ul className="project-list" aria-label={`${island.title} projects`}>
+          {projects.filter((p) => p.island === island.id).map((p) => {
+            const open = openProject === p.slug
+            return <li key={p.slug} id={`project-${p.slug}`} className={open ? 'open' : ''}>
+              <button className="project-row" aria-expanded={open} onClick={() => setOpenProject(open ? null : p.slug)}>
+                <Cover project={p} compact />
+                <span className="project-row-text">
+                  <span className="island-eyebrow">{p.kicker} · <b className={`status-${p.status.replace(/\s+/g, '-').toLowerCase()}`}>{p.status}</b></span>
+                  <strong>{p.title}</strong>
+                  <span>{p.shortDescription}</span>
+                </span>
+                <span className="project-row-caret" aria-hidden="true">{open ? '–' : '+'}</span>
+              </button>
+              {open && <div className="project-body">
+                {p.cover && <Cover project={p} />}
+                {p.problem && <section><h3>The idea</h3><p>{p.problem}</p></section>}
+                {p.build && <section><h3>What I built</h3><p>{p.build}</p></section>}
+                {p.outcome && <section><h3>The experience</h3><p>{p.outcome}</p></section>}
+                <div className="island-tags">{p.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+                <ProjectLinks project={p} />
+              </div>}
+            </li>
+          })}
+        </ul>
         <div className="detail-actions">
-          {project.liveUrl && <a className="live-link" href={project.liveUrl} target="_blank" rel="noreferrer">Open live ↗</a>}
-          <a href={project.repoUrl} target="_blank" rel="noreferrer">View on GitHub ↗</a>
-          <button onClick={nextProject}>Next island →</button>
+          <button onClick={() => select(islands[(islandIndex + 1) % islands.length].id)}>Next island →</button>
         </div>
       </> : <>
         <p className="island-eyebrow">A HOME FOR THE PERSON BEHIND THE PROJECTS</p>
@@ -112,7 +140,7 @@ export default function IslandPortfolio() {
         </div>
         {bioTab === 'about' ? <>
           <div className="pink-note">A builder’s little corner.<br /><em>AI products, playful interfaces,<br />and ideas that become real.</em></div>
-          <section><h3>What brings these islands together</h3><p>I explore AI interactions, creative tools, games, and research through hands-on projects. This is my evolving collection: a place to try things, keep learning, and share what I build.</p></section>
+          <section><h3>What brings these islands together</h3><p>I explore AI interactions, creative tools, games, finance and research through hands-on projects. This is my evolving collection: a place to try things, keep learning, and share what I build.</p></section>
           <section><h3>Where I come from</h3><p>Data science and UX design at the University of Michigan, then AI research, a cross-border startup, consulting, venture investing, and now product growth at MiniMax. The full timeline is under Experience.</p></section>
           <p className="bio-small">Yuanyuan (Lisa) Yin</p>
         </> : <>
@@ -126,14 +154,14 @@ export default function IslandPortfolio() {
           </ol>
           <p className="bio-small"><a href={profileLinks.resume} target="_blank" rel="noreferrer">Résumé (PDF) ↗</a> · <a href={profileLinks.linkedin} target="_blank" rel="noreferrer">LinkedIn ↗</a> · <a href={profileLinks.github} target="_blank" rel="noreferrer">GitHub ↗</a></p>
         </>}
-        <div className="detail-actions"><a href={profileLinks.email}>Let’s talk ↗</a><button onClick={() => select(projects[0].slug)}>Explore my work →</button></div>
+        <div className="detail-actions"><a href={profileLinks.email}>Let’s talk ↗</a><button onClick={() => select(islands[0].id)}>Explore my work →</button></div>
       </>}
     </aside>}
 
     <footer className="island-footer">
       <div className="world-controls"><button onClick={overview}>↺ <span>All islands</span></button><button onClick={() => setArchive(true)}>☷ <span>Project index</span></button></div>
       <p>DRAG TO EXPLORE <span>·</span> SCROLL / PINCH TO ZOOM</p>
-      <span className="island-count">{projects.length + 1} islands · always growing</span>
+      <span className="island-count">{islands.length + 1} islands · {projects.length} projects</span>
     </footer>
 
     <dialog ref={dialog} className="project-dialog" onCancel={() => setArchive(false)} onClose={() => setArchive(false)} onClick={(e) => { if (e.target === e.currentTarget) setArchive(false) }}>
@@ -143,10 +171,10 @@ export default function IslandPortfolio() {
         <p>Different experiments. One curious mind.</p>
         <div className="archive-filters">
           <button aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All projects</button>
-          {Object.entries(categoryLabels).map(([key, label]) => <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}</button>)}
+          {islands.map((i) => <button key={i.id} aria-pressed={filter === i.id} onClick={() => setFilter(i.id)}>{i.title}</button>)}
         </div>
         <div className="archive-grid">
-          {visible.map((p) => <button key={p.slug} className="archive-card" onClick={() => select(p.slug)}>
+          {visible.map((p) => <button key={p.slug} className="archive-card" onClick={() => select(p.island, p.slug)}>
             <Cover project={p} compact />
             <span className="island-eyebrow">{p.kicker}{p.status === 'Live' && <b className="live-dot"> · LIVE</b>}</span>
             <strong>{p.title} ↗</strong>

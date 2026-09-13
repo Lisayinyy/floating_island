@@ -164,22 +164,13 @@ function claw(w:Workshop,x:number,z:number){
 function pavilion(w:Workshop){
   w.box([-.1,.35,-.5],[2.7,.22,2.4],'#d9cdb5');for(const x of [-1.2,1])for(const z of [-1.5,.5])w.cylinder([x,1.42,z],.07,2,'#8c7d60');w.add(new ConeGeometry(2.08,.93,4),[-.1,2.88,-.5],'#919a7d',[1,1,1],[0,Math.PI/4,0]);w.box([-.1,1.43,-1.43],[1.5,1.4,.06],'#f1e8cc');for(let i=0;i<5;i++)w.beam([-.65+i*.2,.94,-1.385],[-.25+i*.17,1.65+i%2*.25,-1.385],.018,'#6b725f');w.box([-.1,.85,.1],[1.5,.13,.55],'#ad9270');for(const x of [-.7,.5])w.box([x,.6,.1],[.06,.4,.4],'#ad9270');tree(w,2,-1.1,false,.64);tree(w,-2,-.7,true,.5);pot(w,1.4,1.4);dock(w,-2.4,1.65,.5)
 }
-// Archive islands are smaller and share one model per category, so a new project
-// only needs data. Each stays under a few thousand triangles: no dense tree canopies.
+// Props shared between islands.
 function arcade(w:Workshop,x:number,z:number){
   w.box([x,.72,z],[.9,1.16,.7],'#cf9484');w.box([x,1.4,z],[.98,.22,.78],'#e8b7a4');w.box([x,1.4,z+.4],[.7,.12,.02],'#fbe6c9')
   w.add(new BoxGeometry(.72,.5,.05),[x,1.06,z+.35],'#bfd6cf',[1,1,1],[-.32,0,0]);w.add(new BoxGeometry(.5,.3,.02),[x,1.07,z+.39],'#6fa39a',[1,1,1],[-.32,0,0])
   w.box([x,.62,z+.42],[.8,.08,.32],'#e0c9a0');w.cylinder([x-.2,.72,z+.45],.03,.14,'#7c6a5a');w.rock([x-.2,.82,z+.45],[.06,.06,.06],'#d95f5f',1)
   w.rock([x+.1,.67,z+.46],[.05,.03,.05],'#6f9fc6',1);w.rock([x+.24,.67,z+.42],[.05,.03,.05],'#e0b64f',1)
   w.box([x+.75,.36,z+.2],[.5,.12,.5],'#c9a276');w.cylinder([x+.75,.2,z+.2],.06,.22,'#a58559')
-}
-function desk(w:Workshop,x:number,z:number){
-  w.box([x,.72,z],[1.3,.08,.65],'#d1a773');for(const dx of [-.55,.55])for(const dz of [-.24,.24])w.box([x+dx,.42,z+dz],[.06,.56,.06],'#b88b60')
-  w.box([x-.15,1.03,z-.12],[.68,.46,.05],'#696b60');w.box([x-.15,1.03,z-.09],[.58,.36,.02],'#eef0e2');w.box([x-.15,.8,z-.1],[.06,.1,.06],'#7f8074')
-  for(let i=0;i<3;i++)w.box([x-.28,.95+i*.08,z-.085],[.3-i*.05,.016,.01],'#a4b6a3')
-  w.box([x+.28,.79,z+.12],[.34,.03,.16],'#e8e2d2');w.cylinder([x+.5,.9,z-.2],.02,.32,'#8c8a80');w.rock([x+.5,1.08,z-.2],[.08,.05,.08],'#e5c46b',1)
-  w.beam([x-.9,.14,z+.5],[x-.9,2.3,z+.5],.035,'#8c8a80',.02);w.add(new TorusGeometry(.16,.02,6,20),[x-.9,2.3,z+.5],'#d9b16a',[1,1,1],[Math.PI/2,0,0]);w.rock([x-.9,2.3,z+.5],[.05,.05,.05],'#e6a8a0',1)
-  w.box([x,.35,z+.42],[.62,.1,.3],'#c9a276');w.box([x,.55,z+.55],[.62,.3,.05],'#c9a276')
 }
 function easel(w:Workshop,x:number,z:number){
   w.beam([x-.3,.14,z+.2],[x-.02,1.65,z-.04],.03,'#a07b52');w.beam([x+.3,.14,z+.2],[x+.02,1.65,z-.04],.03,'#a07b52');w.beam([x,.14,z-.32],[x,1.5,z-.05],.03,'#a07b52')
@@ -196,25 +187,18 @@ function chartBoard(w:Workshop,x:number,z:number){
   w.box([x,.36,z+.8],[1,.1,.32],'#ad9270');for(const dx of [-.4,.4])w.box([x+dx,.24,z+.8],[.06,.16,.3],'#ad9270')
   w.cylinder([x+1,.24,z-.4],.16,.2,'#8c8a80');w.beam([x+1,.34,z-.4],[x+1,.95,z-.4],.025,'#8c8a80');w.add(new CylinderGeometry(.05,.035,.42,8),[x+1.1,1.05,z-.4],'#6b6a70',[1,1,1],[0,0,-1.1])
 }
-function categoryIsland(w:Workshop,category:string){
-  if(category==='interactive'){arcade(w,-.1,-.1);palm(w,1.6,-1.1,2.6);fir(w,-1.7,.9,1.2);pot(w,1.2,1.1);dock(w,-1.9,1.2,.7)}
-  else if(category==='creative-ai'){easel(w,.2,0);tree(w,-1.5,-1.1,true,.5,.22);fir(w,1.7,.8,1.1);pot(w,-1.4,1.2)}
-  else if(category==='finance-research'){chartBoard(w,-.2,-.5);fir(w,-1.8,.7,1.5);fir(w,1.9,.9,1.2);pot(w,1.4,-1.3,.14,.5);dock(w,1.6,1.5,-.8)}
-  else {desk(w,.1,-.2);palm(w,-1.8,-.9,2.4);fir(w,1.8,.7,1.3);pot(w,-1.2,1.2);dock(w,1.7,1.4,-.7)}
-}
 
-export function buildIsland(slug:string,index:number,category?:string){
+export function buildIsland(id:string,index:number){
   const w=new Workshop(819+index*127)
-  const colors:Record<string,string>={about:'#e09c7b','voice-prompt':'#bbb4b4','prompt-ai':'#d8c29a','claw-cove':'#e1c9a0','alpine-rush':'#a6b29a','wu-guanzhong-ink':'#bcc1a6','lisa-trading':'#d0c6b5',interactive:'#e1c9a0','ai-products':'#c4bcb8','creative-ai':'#c3c6aa','finance-research':'#d0c6b5'}
-  if(slug==='about'){terrain(w,colors[slug],index);studio(w)}
-  else if(slug==='alpine-rush'){terrain(w,colors[slug],index);mountains(w)}
-  else if(slug==='lisa-trading'){terrain(w,colors[slug],index);temple(w)}
-  else if(slug==='prompt-ai'){terrain(w,colors[slug],index);cabin(w,-.15,-.25,.93);palm(w,-2.2,-1.3,3.8);palm(w,2,-1,3.4);fir(w,-2.3,.5,1.45);dock(w,2.6,1.55,-.6);pot(w,-1.7,1.4);w.box([1.45,.45,1.4],[.7,.55,.1],'#bb9268');w.box([1.45,.48,1.46],[.59,.4,.025],'#9eafa1')}
-  else if(slug==='voice-prompt'){terrain(w,colors[slug],index);cabin(w,.3,-1,.9);tree(w,-2,-1.1,true,.55);microphone(w,-.6,1.3);w.box([.65,.46,1.5],[1.1,.18,.65],'#d5bf9b');for(let i=0;i<5;i++)w.box([.25+i*.2,.65+(i%3)*.09,1.5],[.075,.2+(i%3)*.18,.1],'#a899ae');fir(w,2,-.1,1.9);pot(w,1.8,1.1);dock(w,2.5,1.4,-.7)}
-  else if(slug==='claw-cove'){terrain(w,colors[slug],index);cabin(w,-.55,-.65,.77);claw(w,1.15,.95);palm(w,2,-1.7,3.5);palm(w,-2.3,-.5,3);dock(w,-.4,2.9,0);pot(w,-1.8,1.2);for(let i=0;i<3;i++)w.rock([-2+i*.17,.6,1.1+i*.18],[.12,.5,.07],['#b6c9ba','#e5bfa0','#d2c5a0'][i])}
-  else if(slug==='wu-guanzhong-ink'){terrain(w,colors[slug],index);pavilion(w)}
-  else {terrain(w,colors[category??'']??'#d8c29a',index,2.9,3.9);categoryIsland(w,category??'');garden(w,'green',2);return w.finish()}
-  garden(w,slug==='about'?'pink':slug==='alpine-rush'?'snow':'green')
+  const colors:Record<string,string>={about:'#e09c7b','ai-toolkits':'#bbb4b4','3d-games':'#e1c9a0',fintech:'#d0c6b5',taste:'#bcc1a6','data-science':'#a6b29a'}
+  terrain(w,colors[id]??'#d8c29a',index)
+  if(id==='about')studio(w)
+  else if(id==='ai-toolkits'){cabin(w,.3,-1,.9);tree(w,-2,-1.1,true,.55);microphone(w,-.6,1.3);w.box([.65,.46,1.5],[1.1,.18,.65],'#d5bf9b');for(let i=0;i<5;i++)w.box([.25+i*.2,.65+(i%3)*.09,1.5],[.075,.2+(i%3)*.18,.1],'#a899ae');fir(w,2,-.1,1.9);pot(w,1.8,1.1);dock(w,2.5,1.4,-.7)}
+  else if(id==='3d-games'){cabin(w,-.55,-.65,.77);claw(w,1.15,.95);arcade(w,1.9,-.9);palm(w,2.4,-2,3.2);palm(w,-2.3,-.5,3);dock(w,-.4,2.9,0);pot(w,-1.8,1.2);for(let i=0;i<3;i++)w.rock([-2+i*.17,.6,1.1+i*.18],[.12,.5,.07],['#b6c9ba','#e5bfa0','#d2c5a0'][i])}
+  else if(id==='fintech')temple(w)
+  else if(id==='taste'){pavilion(w);easel(w,1.7,1.1)}
+  else if(id==='data-science'){mountains(w);chartBoard(w,1.2,.2)}
+  garden(w,id==='about'?'pink':id==='data-science'?'snow':'green')
   return w.finish()
 }
 

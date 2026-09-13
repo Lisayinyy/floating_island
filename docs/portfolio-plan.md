@@ -2,7 +2,7 @@
 
 更新日期：2026-09-13
 
-> 当前决定覆盖下方旧方案：本站与 Inner World、Lisa_web 完全断开。实际入口为真实 3D 群岛：内环六座手工建模的重点项目岛，外环按类别自动建模的归档项目岛（当前 17 座，来自 GitHub 公开仓库复核），加一座粉色个人岛。第 3 节的 Tier B 项目已进入外环；Experience 已使用真实时间线。下文为早期方案留档；最新实现、验收与限制以 README.md、design-qa.md 为准。
+> 当前决定覆盖下方旧方案：本站与 Inner World、Lisa_web 完全断开。实际入口为六座真实 3D 岛：中央粉色个人岛 + 五座类别岛（AI Toolkits、3D & Games、Fintech、Taste、Data Science），每座岛的面板列出该类全部项目（共 35 个，含旧站 Projects 区全部条目）。下文为早期方案留档；最新实现、验收与限制以 README.md、design-qa.md 为准。
 
 ## 1. 产品定位
 

@@ -1,44 +1,45 @@
 # Lisa’s Islands
 
-An explorable 3D project archipelago built with React, React Three Fiber and Three.js.
+An explorable 3D archipelago built with React, React Three Fiber and Three.js. Six islands: a pink About island in the middle and five family islands around it, each holding every project of that kind.
 
 Live: https://lisayinyy.github.io/floating_island/
 
-The app is fully disconnected from the old room, the illustrated map and the legacy personal site: no Inner World, no `Lisa_web` navigation. Everything a visitor needs (projects, about, experience, résumé links) lives here.
+The app is fully disconnected from the old room, the illustrated map and the legacy personal site: no Inner World, no `Lisa_web` navigation. Projects, about, experience and résumé links all live here.
 
-## Layout
+## Islands
 
-- **00 · pink island**: About and Experience. The experience tab is a real timeline (University of Michigan → AI4ALL → GlobeZ → Deloitte → MiraclePlus / ZhenFund → MiniMax), with résumé, LinkedIn and GitHub links.
-- **Inner ring, 01–06**: featured projects, each with a hand-built themed model (Voice Prompt, prompt.ai, Claw Cove, Alpine Rush, Ink Translate, Lisa Trading).
-- **Outer ring, 07+**: the archipelago. Smaller islands whose model comes from the project category (arcade for interactive, desk for AI products, easel for creative AI, chart board for finance & research). Currently 17 projects pulled from GitHub, so a new one only needs a data entry.
+| # | Island | Model | Holds |
+| --- | --- | --- | --- |
+| 00 | About Lisa | pink studio + cherry tree | About me, Experience timeline, résumé / LinkedIn / GitHub |
+| 01 | AI Toolkits | cabin + microphone | Voice Prompt, prompt.ai, Skills Master, Xiaohongshu Monitor, Web Summary Assistant, Threadly, VoiceMeeting, Video Quote Cards, vibe.ai, Influencer Management System |
+| 02 | 3D & Games | claw machine + arcade + palms | Claw Cove, Alpine Rush, Forbidden City Voxel, 3D Letter Gallery, Labubu Garden, Live Spider Suit, this site |
+| 03 | Fintech | columned research terrace | Lisa Trading, Monkey AI, A-share pre-market scan, A-stock quick scan, Quant Jargon Compiler, LLM Investor Graph, Serenity skills |
+| 04 | Taste | pavilion + easel | Wu Guanzhong Ink, Qiaopi Creator, Life K-Line, Reading Case, Xiaoju’s Wardrobe, MiLastBite design, BLICK accessibility |
+| 05 | Data Science | alpine peaks + chart board | Collision Warning (YOLO), Sentiment SVM, CNN classification, K-Means |
 
-Drag to orbit, scroll/pinch to zoom, click a model or label to fly closer. "All islands" resets the camera. The project index is a filterable native dialog and works without WebGL. Outer-ring labels hide when the camera is far (phone overview) and return as you zoom in.
+Click an island (or its label) to fly to it. The panel lists that island's projects; each row expands to the story, cover, tags and links. The project index (dialog) lists all 35 across islands, filterable, and works without WebGL. Selecting a project there flies to its island with that row open.
 
 ## Development
 
 ```bash
 npm install
-npm run dev      # http://localhost:4812 if you pass --port 4812
+npm run dev -- --port 4812
 npm run build    # tsc -b && vite build
 npm run lint     # oxlint
 node --experimental-strip-types qa/sculpture-check.mjs
 ```
 
-- `src/data/projects.ts`: every project. `featured` decides the ring; `cover` is optional (archive entries without a real screenshot get a category tile); `liveUrl` is only set when the public page was verified to load; `status` is `Live | Beta | Project | In development`.
+- `src/data/projects.ts`: `islands` (order = ring order) and `projects`. A project needs `island`, `status` (`Live | Beta | Project | In development | Internal | Design`), `tags`; `cover`, `repoUrl`, `liveUrl` and the three story fields are optional. `liveUrl` is only set when the URL was verified to load.
 - `src/data/journey.ts`: career timeline and profile links.
-- `src/interface/IslandPortfolio.tsx`: navigation, detail panel, project index.
-- `src/scene/ProjectIslands.tsx`: ring placement, camera, ocean, routes and clouds.
-- `src/scene/IslandSculptures.ts`: deterministic vertex-colour sculpture builder. One merged mesh per island; featured islands have slug-keyed models, archive islands use `categoryIsland`.
-- `public/projects/`: real covers. The five `Live` archive covers are screenshots of the deployed GitHub Pages builds.
-- `qa/sculpture-check.mjs`: geometry check for all islands (finite, deterministic, rock base, per-island and total triangle budget).
+- `src/interface/IslandPortfolio.tsx`: navigation, island panel with expandable project rows, project index.
+- `src/scene/ProjectIslands.tsx`: ring placement, radial fly-in camera, ocean, routes, clouds.
+- `src/scene/IslandSculptures.ts`: deterministic vertex-colour sculpture builder, one merged mesh per island, models keyed by island id.
+- `public/projects/`: real covers only (screenshots, product art, design boards).
+- `qa/sculpture-check.mjs`: geometry check for the six islands.
 
 ### Adding a project
 
-1. Add an entry to `src/data/projects.ts` (set `featured: false` for the outer ring).
-2. Optional: drop a real screenshot into `public/projects/` and set `cover`.
-3. Optional: give it its own model in `buildIsland` and set `featured: true`.
-
-Island positions, numbering, the index and the count in the footer all derive from the data. GitHub is not synced automatically: only reviewed projects with a readable README and a clear public status go in.
+Add an entry to `src/data/projects.ts` with the right `island`. Optionally drop a real screenshot into `public/projects/`. Nothing else changes: the island panel, index, counts and filters derive from the data. Adding a whole new family means one `islands` entry plus a model branch in `buildIsland`.
 
 ## Verification
 
