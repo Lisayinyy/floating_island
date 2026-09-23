@@ -4,7 +4,16 @@ import type { ReactNode } from 'react'
 import { journey, profileLinks } from '../data/journey'
 import { islandById, islands, projects } from '../data/projects'
 import type { IslandId, Project } from '../data/projects'
+import { postBySlug, posts } from '../blog/posts'
 import './IslandPortfolio.css'
+
+type BlogRoute = 'index' | string | null
+
+const readBlogHash = (): BlogRoute => {
+  const m = window.location.hash.match(/^#blog(?:\/([\w-]+))?$/)
+  if (!m) return null
+  return m[1] && postBySlug[m[1]] ? m[1] : 'index'
+}
 
 const Islands = lazy(() => import('../scene/ProjectIslands'))
 
@@ -45,7 +54,9 @@ export default function IslandPortfolio() {
   const [archive, setArchive] = useState(false)
   const [filter, setFilter] = useState<IslandId | 'all'>('all')
   const [bioTab, setBioTab] = useState<'about' | 'experience'>('about')
+  const [blog, setBlog] = useState<BlogRoute>(readBlogHash)
   const dialog = useRef<HTMLDialogElement>(null)
+  const blogDialog = useRef<HTMLDialogElement>(null)
   const readyScene = useCallback(() => setReady(true), [])
 
   const islandIndex = islands.findIndex((island) => island.id === selection)
@@ -56,7 +67,18 @@ export default function IslandPortfolio() {
 
   useEffect(() => { if (archive) dialog.current?.showModal(); else dialog.current?.close() }, [archive])
   useEffect(() => {
-    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !dialog.current?.open) { setSelection(null); setOpenProject(null) } }
+    if (blog) blogDialog.current?.showModal(); else blogDialog.current?.close()
+    const hash = blog === null ? '' : blog === 'index' ? '#blog' : `#blog/${blog}`
+    if (window.location.hash !== hash) history.replaceState(null, '', hash || window.location.pathname)
+    blogDialog.current?.scrollTo({ top: 0 })
+  }, [blog])
+  useEffect(() => {
+    const onHash = () => setBlog(readBlogHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  useEffect(() => {
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !dialog.current?.open && !blogDialog.current?.open) { setSelection(null); setOpenProject(null) } }
     window.addEventListener('keydown', escape)
     return () => window.removeEventListener('keydown', escape)
   }, [])
@@ -74,6 +96,7 @@ export default function IslandPortfolio() {
         <button onClick={() => setArchive(true)}>Projects <sup>{projects.length}</sup></button>
         <button onClick={() => openBio('about')}>About</button>
         <button className="experience-nav" onClick={() => openBio('experience')}>Experience</button>
+        <button onClick={() => setBlog('index')}>Blog</button>
         <a className="contact-link" href={profileLinks.email}>Say hello ↗</a>
       </nav>
     </header>
@@ -182,6 +205,34 @@ export default function IslandPortfolio() {
           </button>)}
         </div>
       </div>
+    </dialog>
+
+    <dialog ref={blogDialog} className="project-dialog blog-dialog" onCancel={() => setBlog(null)} onClose={() => setBlog(null)} onClick={(e) => { if (e.target === e.currentTarget) setBlog(null) }}>
+      {blog && (blog === 'index' ? <div className="archive-content">
+        <div className="detail-top"><span>THE BLOG · {posts.length} {posts.length === 1 ? 'POST' : 'POSTS'}</span><button aria-label="Close blog" onClick={() => setBlog(null)}>×</button></div>
+        <h2>Research logs.</h2>
+        <p>Notes I write while figuring things out. Sources included, opinions dated.</p>
+        <ul className="post-list">
+          {posts.map((p) => <li key={p.slug}>
+            <button className="post-row" onClick={() => setBlog(p.slug)}>
+              <span className="island-eyebrow">{p.date} · {p.readTime}</span>
+              <strong>{p.title}</strong>
+              <span>{p.summary}</span>
+              <span className="island-tags">{p.tags.map((t) => <span key={t}>{t}</span>)}</span>
+            </button>
+          </li>)}
+        </ul>
+      </div> : <article className="archive-content blog-article">
+        <div className="detail-top">
+          <button className="back-link" onClick={() => setBlog('index')}>← All posts</button>
+          <button aria-label="Close post" onClick={() => setBlog(null)}>×</button>
+        </div>
+        <p className="island-eyebrow">{postBySlug[blog].date.toUpperCase()} · {postBySlug[blog].readTime.toUpperCase()} READ</p>
+        <h2>{postBySlug[blog].title}</h2>
+        <div className="island-tags">{postBySlug[blog].tags.map((t) => <span key={t}>{t}</span>)}</div>
+        {postBySlug[blog].body}
+        <div className="detail-actions"><button onClick={() => setBlog('index')}>← All posts</button><a href={profileLinks.email}>Discuss this ↗</a></div>
+      </article>)}
     </dialog>
   </main>
 }
