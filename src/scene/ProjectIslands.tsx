@@ -9,14 +9,14 @@ import { buildBoat, buildIsland, buildRoute, buildSatellites, buildWake } from '
 
 type V=[number,number,number]
 // Index 0 is the pink island in the middle; the five family islands ring it.
-const destinations=[{id:'about',shortTitle:'About Lisa'},...islands]
+const destinations=[{id:'about'},...islands]
 const RING=islands.length,RADIUS=12.5
 function islandPosition(i:number):V {
   if(!i)return [0,.8,0]
   const angle=(i-1)/RING*Math.PI*2+Math.PI/6
   return [Math.cos(angle)*RADIUS,Math.sin(i*2)*.6,Math.sin(angle)*RADIUS]
 }
-function Sculpture({index,selected,onSelect}:{index:number;selected:boolean;onSelect:(id:string)=>void}){
+function Sculpture({index,label,selected,onSelect}:{index:number;label:string;selected:boolean;onSelect:(id:string)=>void}){
   const anchor=useRef<Group>(null)
   const reduced=useReducedMotion()
   const p=islandPosition(index)
@@ -27,7 +27,7 @@ function Sculpture({index,selected,onSelect}:{index:number;selected:boolean;onSe
   return <group ref={anchor} position={p} onClick={e=>{if(e.delta>5)return;e.stopPropagation();onSelect(item.id)}}>
     <mesh geometry={geometry} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.88} side={DoubleSide}/></mesh>
     <ContactShadows position={[0,.18,0]} scale={8.6} opacity={.33} blur={1.8} far={7} resolution={128} frames={1} color="#8e765e"/>
-    <Html position={[0,-.18,3.65]} center zIndexRange={[15,1]}><button className={`world-island-label ${selected?'selected':''}`} onClick={e=>{e.stopPropagation();onSelect(item.id)}} aria-pressed={selected}><span>{String(index).padStart(2,'0')}</span>{item.shortTitle}</button></Html>
+    <Html position={[0,-.18,3.65]} center zIndexRange={[15,1]}><button className={`world-island-label ${selected?'selected':''}`} onClick={e=>{e.stopPropagation();onSelect(item.id)}} aria-pressed={selected}><span>{String(index).padStart(2,'0')}</span>{label}</button></Html>
   </group>
 }
 function Ocean(){
@@ -87,14 +87,14 @@ function Camera({selection,reset,onReady}:{selection:string|null;reset:number;on
   })
   return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={.08} minDistance={7} maxDistance={130} minPolarAngle={.18} maxPolarAngle={Math.PI*.47} onStart={()=>{moving.current=false}}/>
 }
-export default function ProjectIslands({selection,reset,onSelect,onReady}:{selection:string|null;reset:number;onSelect:(id:string)=>void;onReady:()=>void}){
+export default function ProjectIslands({selection,reset,labels,onSelect,onReady}:{selection:string|null;reset:number;labels:Record<string,string>;onSelect:(id:string)=>void;onReady:()=>void}){
   return <>
     <fog attach="fog" args={['#f8f4ec',55,135]}/>
     <ambientLight intensity={.7}/><hemisphereLight args={['#fff3df','#a3aea4',1.1]}/>
     <directionalLight position={[-12,24,12]} intensity={2.3} color="#fff0da" castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-30} shadow-camera-right={30} shadow-camera-top={30} shadow-camera-bottom={-30} shadow-camera-far={85} shadow-normalBias={.018} shadow-bias={-.00015}/>
     <directionalLight position={[14,12,-18]} intensity={.8} color="#e4e8e9"/>
     <Ocean/><Surroundings/>
-    {destinations.map((d,i)=><Sculpture key={d.id} index={i} selected={selection===d.id} onSelect={onSelect}/>)}
+    {destinations.map((d,i)=><Sculpture key={d.id} index={i} label={labels[d.id]} selected={selection===d.id} onSelect={onSelect}/>)}
     <Camera selection={selection} reset={reset} onReady={onReady}/>
   </>
 }
