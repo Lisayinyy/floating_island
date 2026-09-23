@@ -208,7 +208,7 @@ export default function IslandPortfolio() {
     </dialog>
 
     <dialog ref={blogDialog} className="project-dialog blog-dialog" onCancel={() => setBlog(null)} onClose={() => setBlog(null)} onClick={(e) => { if (e.target === e.currentTarget) setBlog(null) }}>
-      {blog && (blog === 'index' ? <div className="archive-content">
+      {blog && (blog === 'index' ? <div className="archive-content" tabIndex={-1} autoFocus>
         <div className="detail-top"><span>THE BLOG · {posts.length} {posts.length === 1 ? 'POST' : 'POSTS'}</span><button aria-label="Close blog" onClick={() => setBlog(null)}>×</button></div>
         <h2>Research logs.</h2>
         <p>Notes I write while figuring things out. Sources included, opinions dated.</p>
@@ -222,7 +222,7 @@ export default function IslandPortfolio() {
             </button>
           </li>)}
         </ul>
-      </div> : <article className="archive-content blog-article">
+      </div> : <article className="archive-content blog-article" tabIndex={-1} autoFocus>
         <div className="detail-top">
           <button className="back-link" onClick={() => setBlog('index')}>← All posts</button>
           <button aria-label="Close post" onClick={() => setBlog(null)}>×</button>
